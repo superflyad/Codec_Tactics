@@ -1,0 +1,17 @@
+bin/
+obj/
+.godot/
+.mono/
+.import/
+export.cfg
+export_presets.cfg
+*.tmp
+*.log
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+TestResults/
+coverage/

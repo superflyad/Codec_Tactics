@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodecTactics.Core", "src\CodecTactics.Core\CodecTactics.Core.csproj", "{A5717715-1C25-4CB1-A5D0-4DDF78A72C97}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodecTactics.Core.Tests", "tests\CodecTactics.Core.Tests\CodecTactics.Core.Tests.csproj", "{73A2AFBA-ED43-4582-B222-A7ABDB07D60C}"
+EndProject
+Global
+  GlobalSection(SolutionConfigurationPlatforms) = preSolution
+    Debug|Any CPU = Debug|Any CPU
+    Release|Any CPU = Release|Any CPU
+  EndGlobalSection
+  GlobalSection(ProjectConfigurationPlatforms) = postSolution
+    {A5717715-1C25-4CB1-A5D0-4DDF78A72C97}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A5717715-1C25-4CB1-A5D0-4DDF78A72C97}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A5717715-1C25-4CB1-A5D0-4DDF78A72C97}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {A5717715-1C25-4CB1-A5D0-4DDF78A72C97}.Release|Any CPU.Build.0 = Release|Any CPU
+    {73A2AFBA-ED43-4582-B222-A7ABDB07D60C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {73A2AFBA-ED43-4582-B222-A7ABDB07D60C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {73A2AFBA-ED43-4582-B222-A7ABDB07D60C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {73A2AFBA-ED43-4582-B222-A7ABDB07D60C}.Release|Any CPU.Build.0 = Release|Any CPU
+  EndGlobalSection
+EndGlobal

@@ -1,0 +1,14 @@
+; Engine configuration file.
+; Prefer opening this project with Godot .NET 4.x or newer.
+
+config_version=5
+
+[application]
+
+config/name="Codec_Tactics"
+config/features=PackedStringArray("4.0", "C#", "Forward Plus")
+run/main_scene=""
+
+[dotnet]
+
+project/assembly_name="Codec_Tactics"
