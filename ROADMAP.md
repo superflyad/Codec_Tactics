@@ -11,12 +11,13 @@
 - Represent a small 2D network map.
 - Allow the player to select and expand network nodes.
 - Provide immediate feedback for valid and invalid expansion choices.
+- Implemented in pure C# with deterministic enemy spread, turn progression, and console test coverage.
 
 ## Milestone 2: Turn System and Enemy Spread
 
-- Add explicit player and enemy turns.
-- Introduce deterministic corruption spread rules.
-- Add tests for turn order and spread outcomes.
+- Extend the prototype turn system with richer phase feedback and scenario outcomes.
+- Add more expressive corruption spread rules.
+- Introduce a Godot-facing presentation of turn and spread results.
 
 ## Milestone 3: Layers
 

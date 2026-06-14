@@ -25,9 +25,18 @@ Future visualization may represent layers as cube faces, cube slices, or cube-li
 
 Enemy pressure comes from access. Badly planned routes, overextended connections, and exposed nodes allow corruption to enter or spread. The enemy system should be deterministic enough to test while still creating interesting strategic pressure.
 
-## Non-Goals For Milestone 0
+## Milestone 1 Prototype Rules
 
-- No real gameplay loop.
+- The prototype board is a fixed 4x4 2D network.
+- Player control starts at `(0,0)`.
+- Enemy corruption starts at `(3,3)`.
+- The player can claim adjacent neutral nodes, reinforce owned nodes, or weaken reachable enemy connections.
+- After each successful player action, corruption expands into one adjacent neutral node using deterministic row-major order.
+
+## Non-Goals For Milestone 1
+
 - No balancing.
 - No production art.
+- No layers or cube visualization.
+- No advanced AI, save/load, or scenario polish.
 - No full Godot scene implementation.

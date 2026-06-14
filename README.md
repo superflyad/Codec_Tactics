@@ -4,7 +4,7 @@ Codec_Tactics is an early-stage C# Godot project for a turn-based network tactic
 
 The player builds a growing network across layered, cube-inspired spaces. Each expansion opens useful paths, but poor choices can expose routes for enemy corruption. Complexity increases as the player descends into deeper network layers.
 
-This repository is currently at Milestone 0: repo foundation. It intentionally does not contain real gameplay yet.
+This repository is currently at Milestone 1: playable 2D network prototype. It contains a small deterministic core loop in pure C# and still intentionally avoids layers, cube visualization, advanced AI, save/load, and polish.
 
 ## Current Foundation
 
@@ -13,6 +13,7 @@ This repository is currently at Milestone 0: repo foundation. It intentionally d
 - Console-based automated test runner with no third-party test dependency
 - Validation script for repeatable local checks
 - Documentation for architecture, milestones, contribution workflow, and Codex usage
+- Pure C# 2D network prototype with fixed grid nodes, adjacent connections, ownership, player actions, deterministic enemy spread, turn counter, and placeholder outcomes
 
 ## Requirements
 
@@ -43,6 +44,17 @@ project.godot                 Godot project metadata
 Codec_Tactics.sln             .NET validation solution
 ```
 
-## Status
+## Milestone 1 Mechanics
 
-No gameplay is implemented yet. The next target is Milestone 1: a playable 2D network prototype.
+- The default board is a fixed 4x4 orthogonal node grid.
+- Nodes can be neutral, player-owned, or enemy-owned.
+- The player starts at `(0,0)` and enemy corruption starts at `(3,3)`.
+- One successful player action resolves one deterministic enemy expansion and advances the turn.
+- Player actions currently include claiming adjacent neutral nodes, reinforcing owned nodes, and weakening reachable enemy connections.
+- Enemy corruption expands into the first adjacent neutral node by deterministic row-major node order.
+
+## Current Limitations
+
+- No Godot gameplay scene is wired to the core model yet.
+- No layers, cube visualization, advanced AI, save/load, balancing, resources, or production UI.
+- Win/loss rules are placeholders for future scenario design.

@@ -14,6 +14,8 @@ Expected concepts:
 - Reachability and exposure calculations.
 - Deterministic state transitions for tests.
 
+Milestone 1 implements this as `NetworkBoard`, a fixed-size orthogonal grid graph with stable `NodeId` coordinates and explicit `ConnectionState` links.
+
 ## Node Model
 
 Nodes are the primary tactical objects.
@@ -26,6 +28,8 @@ Potential node state:
 - Network links.
 - Visibility or discovered status.
 - Future resource or defense properties.
+
+Milestone 1 node state includes ownership and integrity so reinforcement can be tested now and expanded later.
 
 ## Layer Model
 
@@ -56,6 +60,8 @@ Expected phases:
 - Enemy/corruption spread.
 - Cleanup and win/loss checks.
 
+Milestone 1 uses a compact `NetworkGame` flow: player action, enemy expansion, outcome evaluation, then turn increment back to the player when the game remains in progress.
+
 ## Enemy and Corruption System
 
 Corruption should spread through access created by the network. It should punish careless expansion without making the player feel that outcomes are arbitrary.
@@ -66,6 +72,8 @@ Implementation goals:
 - Clear source and path of corruption.
 - Visible risk before player commitment where possible.
 - Rules that can grow from simple 2D prototypes to layered spaces.
+
+Milestone 1 corruption expands from enemy-owned nodes into one adjacent neutral node, selected deterministically by row-major order. This is intentionally simple and exists to prove the loop before richer AI.
 
 ## Future Visualization Goals
 
