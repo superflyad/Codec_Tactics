@@ -1,6 +1,6 @@
 # Visible Prototype
 
-Milestone 1.5 added the first launchable Godot scene for the 2D network prototype. Milestone 2 keeps the same temporary scene and connects it to the strategic node, energy, and corruption-pressure rules.
+Milestone 1.5 added the first launchable Godot scene for the 2D network prototype. Milestones 2 and 3 keep the same temporary scene and connect it to the strategic node, energy, corruption-pressure, integrity, threat, and collapse rules.
 
 ## Scope
 
@@ -16,6 +16,10 @@ Included:
 - Invalid clicks leave the core state unchanged and update the status text.
 - The End Turn button calls `NetworkGame.EndPlayerTurnWithResult`, which resolves the real corruption turn without reinforcing a node.
 - HUD labels show turn, phase, energy, corruption pressure, status, and result state.
+- Player-owned nodes display integrity and threat values.
+- Unstable nodes display an extra orange danger ring.
+- Clicking owned nodes reports integrity, threat, instability progress, and the core-generated danger reason.
+- Collapse events are reported through the status text after enemy-turn resolution.
 
 Excluded:
 

@@ -4,7 +4,7 @@ Codec_Tactics is an early-stage C# Godot project for a turn-based network tactic
 
 The player builds a growing network across layered, cube-inspired spaces. Each expansion opens useful paths, but poor choices can expose routes for enemy corruption. Complexity increases as the player descends into deeper network layers.
 
-This repository is currently at Milestone 2: strategic 2D prototype. It contains a small deterministic core loop in pure C# plus a minimal Godot scene that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and polish.
+This repository is currently at Milestone 3: network integrity and threat system. It contains a small deterministic core loop in pure C# plus a minimal Godot scene that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and polish.
 
 ## Current Foundation
 
@@ -14,7 +14,7 @@ This repository is currently at Milestone 2: strategic 2D prototype. It contains
 - Console-based automated test runner with no third-party test dependency
 - Validation script for repeatable local checks
 - Documentation for architecture, milestones, contribution workflow, and Codex usage
-- Pure C# 2D network prototype with fixed grid nodes, adjacent connections, ownership, node types, energy costs, deterministic corruption pressure, turn counter, and placeholder outcomes
+- Pure C# 2D network prototype with fixed grid nodes, adjacent connections, ownership, node types, energy costs, network integrity, threat, instability, deterministic corruption pressure, collapse, turn counter, and placeholder outcomes
 - Minimal Godot C# presentation that draws the board, handles node claims, exposes a real End Turn action, and updates HUD text
 
 ## Requirements
@@ -58,7 +58,7 @@ Codec_Tactics.csproj          Godot C# project
 Codec_Tactics.sln             .NET validation solution
 ```
 
-## Milestone 2 Mechanics
+## Milestone 3 Mechanics
 
 - The default board is a fixed 4x4 orthogonal node grid.
 - Nodes can be neutral, player-owned, or enemy-owned.
@@ -67,9 +67,13 @@ Codec_Tactics.sln             .NET validation solution
 - The player has energy. Claiming costs 2 energy; reinforcing costs 1 energy.
 - Player-owned Resource nodes generate 2 energy at the start of each new player turn.
 - Player-owned Relay nodes extend claim range to neutral nodes within two active connections.
-- Corruption pressure increases by 1 each enemy turn and expands deterministically when pressure meets the target node's resistance.
+- Player-owned nodes calculate integrity from core connection, distance, owned neighbors, Relay support, Firewall support, dense structure, reinforcement, and isolation.
+- Player-owned nodes calculate threat from nearby corruption, corruption pressure, weak owned connections, frontier exposure, and isolation.
+- Nodes become unstable when threat exceeds integrity. If instability persists for 2 enemy turns, the node collapses to corruption.
+- Corruption pressure increases by 1 each enemy turn and expands deterministically by prioritizing unstable, weak, and exposed targets when pressure meets the target node's resistance.
 - Firewall nodes require 2 corruption pressure before corruption can claim them.
 - Player actions include claiming reachable neutral nodes, reinforcing owned nodes, weakening reachable enemy connections, and ending the turn.
+- See `docs/network-integrity.md` for formulas, examples, collapse behavior, and strategy implications.
 
 ## Milestone 1.5 Visible Prototype
 
@@ -85,5 +89,6 @@ Codec_Tactics.sln             .NET validation solution
 
 - Godot visuals are temporary debug-style UI, not final art.
 - Node type placement and balance values are fixed prototype constants.
+- Network integrity and threat formulas are prototype balance values.
 - No layers, cube visualization, advanced AI, save/load, balancing, real art, or production UI.
 - Win/loss rules are placeholders for future scenario design.

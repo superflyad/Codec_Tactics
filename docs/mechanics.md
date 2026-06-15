@@ -51,15 +51,28 @@ Each successful player action follows this sequence:
 
 Ending the turn is a real core action with no energy cost. It skips player mutation but still resolves corruption pressure and expansion.
 
+## Network Integrity and Threat
+
+Player-owned nodes calculate integrity and threat from the current network structure.
+
+Integrity increases from core connection, owned adjacent nodes, Relay support, Firewall support, dense local structure, and reinforcement. Integrity decreases when a node is isolated from the player core or sits deep in a long chain.
+
+Threat increases from adjacent corruption, nearby corruption, global corruption pressure, weak owned connections, neutral frontier exposure, and isolation.
+
+A node is unstable when threat exceeds integrity. If that instability persists for two enemy turns, the node collapses to corruption. Collapse is deterministic and reported through `GameActionResult.CollapsedNodes`.
+
+Detailed formulas and examples are documented in `docs/network-integrity.md`.
+
 ## Corruption Pressure
 
 Corruption pressure starts at zero. Each enemy/corruption turn adds one pressure, then corruption checks for one expansion target.
 
 Expansion target selection is deterministic:
 
-1. Look at enemy-owned nodes in row-major order.
-2. For each enemy node, look at active adjacent neutral nodes in row-major order.
-3. Deduplicate candidates and pick the first row-major target.
+1. Find active neighbors of enemy-owned nodes that are not already enemy-owned.
+2. Score candidates by instability, low integrity, current threat, and Firewall resistance.
+3. Pick the highest score.
+4. Resolve ties by row-major node id.
 
 If the current pressure is at least the target node's resistance, corruption claims that node and spends pressure equal to the resistance. Standard, Resource, and Relay nodes have resistance 1. Firewall nodes have resistance 2.
 

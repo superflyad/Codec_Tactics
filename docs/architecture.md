@@ -29,7 +29,7 @@ Potential node state:
 - Visibility or discovered status.
 - Future resource or defense properties.
 
-Milestone 1 node state includes ownership and integrity so reinforcement can be tested now and expanded later.
+Milestone 3 node state includes ownership, calculated integrity, threat, and instability so network structure can drive deterministic collapse behavior.
 
 ## Layer Model
 

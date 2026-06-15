@@ -21,6 +21,7 @@ public partial class PrototypeScene : Control
     private readonly Color _resourceColor = new(0.95f, 0.78f, 0.24f);
     private readonly Color _relayColor = new(0.38f, 0.64f, 1.0f);
     private readonly Color _firewallColor = new(0.74f, 0.42f, 0.96f);
+    private readonly Color _unstableColor = new(1.0f, 0.56f, 0.2f);
 
     private NetworkGame _game = NetworkGame.CreateDefault();
     private Label _turnLabel = default!;
@@ -75,8 +76,14 @@ public partial class PrototypeScene : Control
                 DrawArc(position, NodeRadius + 9f, 0f, Mathf.Tau, 48, _reinforcedColor, 4f);
             }
 
+            if (node.IsUnstable)
+            {
+                DrawArc(position, NodeRadius + 14f, 0f, Mathf.Tau, 48, _unstableColor, 5f);
+            }
+
             DrawString(ThemeDB.FallbackFont, position + new Vector2(-12f, 5f), $"{node.Id.X},{node.Id.Y}", HorizontalAlignment.Left, -1f, 14, Colors.Black);
             DrawString(ThemeDB.FallbackFont, position + new Vector2(-7f, -30f), GetNodeTypeLabel(node.Type), HorizontalAlignment.Left, -1f, 14, GetNodeTypeColor(node));
+            DrawString(ThemeDB.FallbackFont, position + new Vector2(-18f, 44f), $"I{node.Integrity}/T{node.Threat}", HorizontalAlignment.Left, -1f, 12, node.IsUnstable ? _unstableColor : _outlineColor);
         }
     }
 
@@ -103,7 +110,7 @@ public partial class PrototypeScene : Control
         var node = _game.Board.GetNode(clickedNode.Value);
         if (node.Owner != NodeOwner.Neutral)
         {
-            _status = $"{clickedNode} is already {node.Owner}.";
+            _status = FormatNodeStatus(node);
             UpdateHud();
             return;
         }
@@ -148,6 +155,15 @@ public partial class PrototypeScene : Control
         _resultLabel.Text = $"Result: {FormatResult(_game.Result)}";
         _endTurnButton.Disabled = _game.Result != GameResult.InProgress;
         QueueRedraw();
+    }
+
+    private static string FormatNodeStatus(NodeState node)
+    {
+        var unstable = node.IsUnstable
+            ? $" Unstable {node.UnstableTurns}/{NetworkRules.InstabilityTurnsBeforeCollapse}."
+            : string.Empty;
+
+        return $"{node.Id} {node.Owner} {node.Type}: integrity {node.Integrity}, threat {node.Threat}.{unstable} Reason: {node.DangerReason}";
     }
 
     private NodeId? FindClickedNode(Vector2 position)

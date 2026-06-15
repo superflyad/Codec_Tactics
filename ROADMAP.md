@@ -28,7 +28,16 @@
 - Add deterministic corruption pressure and structured Godot-facing action feedback.
 - Status: implemented as the strategic 2D prototype slice.
 
-## Milestone 3: Layers
+## Milestone 3: Network Integrity and Threat System
+
+- Make network structure strategically meaningful.
+- Add calculated integrity and threat values to player-owned nodes.
+- Add instability and deterministic collapse into corruption.
+- Update corruption expansion to prioritize weak, exposed, and unstable targets.
+- Surface danger reasons in the Godot prototype.
+- Status: implemented as the network integrity strategy slice.
+
+## Milestone 3.5: Layers
 
 - Add deeper network layers with increasing complexity.
 - Define transitions between layers.

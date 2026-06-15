@@ -29,7 +29,13 @@ public sealed class NetworkGame
         var game = new NetworkGame(NetworkBoard.CreateGrid());
         game.Board.GetNode(DefaultPlayerStart).SetOwner(NodeOwner.Player);
         game.Board.GetNode(DefaultEnemyStart).SetOwner(NodeOwner.Enemy);
+        game.RefreshNetworkRisk();
         return game;
+    }
+
+    public IReadOnlyList<NodeId> RefreshNetworkRisk(bool advanceInstability = false)
+    {
+        return NetworkIntegrityEvaluator.Evaluate(Board, DefaultPlayerStart, CorruptionPressure, advanceInstability);
     }
 
     public bool ClaimNode(NodeId target)
@@ -61,6 +67,7 @@ public sealed class NetworkGame
         }
 
         node.SetOwner(NodeOwner.Player);
+        RefreshNetworkRisk();
         var result = CompletePlayerAction($"Claimed {target} for {NetworkRules.ClaimEnergyCost} energy.", NetworkRules.ClaimEnergyCost);
         return result;
     }
@@ -89,6 +96,7 @@ public sealed class NetworkGame
         }
 
         node.Reinforce();
+        RefreshNetworkRisk();
         return CompletePlayerAction($"Reinforced {target} for {NetworkRules.ReinforceEnergyCost} energy.", NetworkRules.ReinforceEnergyCost);
     }
 
@@ -126,6 +134,7 @@ public sealed class NetworkGame
         }
 
         connection.Weaken();
+        RefreshNetworkRisk();
         return CompletePlayerAction($"Weakened corruption link for {NetworkRules.ReinforceEnergyCost} energy.", NetworkRules.ReinforceEnergyCost);
     }
 
@@ -149,7 +158,7 @@ public sealed class NetworkGame
     private GameActionResult CompletePlayerAction(string actionMessage, int energySpent)
     {
         Phase = TurnPhase.Enemy;
-        var corruptionTarget = ResolveEnemyTurn();
+        var enemyTurn = ResolveEnemyTurn();
         EvaluateOutcome();
 
         var energyGenerated = 0;
@@ -158,32 +167,29 @@ public sealed class NetworkGame
             TurnNumber++;
             energyGenerated = BeginPlayerTurn();
             Phase = TurnPhase.Player;
+            RefreshNetworkRisk();
         }
 
-        var spreadMessage = corruptionTarget.HasValue
-            ? $" Corruption spread to {corruptionTarget.Value}."
-            : " Corruption pressure built but did not spread.";
+        var collapseMessage = enemyTurn.CollapsedNodes.Count > 0
+            ? $" Collapse: {string.Join(", ", enemyTurn.CollapsedNodes)} fell to corruption after {NetworkRules.InstabilityTurnsBeforeCollapse} unstable turns."
+            : string.Empty;
+        var spreadMessage = enemyTurn.CorruptionTarget.HasValue
+            ? $" Corruption spread to {enemyTurn.CorruptionTarget.Value}."
+            : enemyTurn.CorruptionFocusTarget.HasValue
+                ? $" Corruption focused {enemyTurn.CorruptionFocusTarget.Value} but pressure was contained."
+                : " Corruption pressure built but did not spread.";
         var resourceMessage = energyGenerated > 0
             ? $" Resource nodes generated {energyGenerated} energy."
             : string.Empty;
 
-        return SetLastAction(true, actionMessage + spreadMessage + resourceMessage, energySpent, energyGenerated, corruptionTarget);
+        return SetLastAction(true, actionMessage + collapseMessage + spreadMessage + resourceMessage, energySpent, energyGenerated, enemyTurn.CorruptionTarget, enemyTurn.CorruptionFocusTarget, enemyTurn.CollapsedNodes);
     }
 
-    private NodeId? ResolveEnemyTurn()
+    private EnemyTurnResult ResolveEnemyTurn()
     {
         CorruptionPressure++;
-        var expansionTarget = Board.Nodes
-            .Where(node => node.Owner == NodeOwner.Enemy)
-            .OrderBy(node => node.Id)
-            .SelectMany(enemyNode => Board.GetAdjacentNodes(enemyNode.Id)
-                .Where(adjacent => adjacent.Owner == NodeOwner.Neutral)
-                .OrderBy(adjacent => adjacent.Id))
-            .Select(node => node.Id)
-            .Distinct()
-            .OrderBy(nodeId => nodeId)
-            .Cast<NodeId?>()
-            .FirstOrDefault();
+        var collapsed = RefreshNetworkRisk(advanceInstability: true);
+        var expansionTarget = CorruptionTargetPolicy.SelectExpansionTarget(Board);
 
         if (expansionTarget.HasValue)
         {
@@ -193,11 +199,13 @@ public sealed class NetworkGame
             {
                 targetNode.SetOwner(NodeOwner.Enemy);
                 CorruptionPressure -= resistance;
-                return targetNode.Id;
+                RefreshNetworkRisk();
+                return new EnemyTurnResult(targetNode.Id, targetNode.Id, collapsed);
             }
         }
 
-        return null;
+        RefreshNetworkRisk();
+        return new EnemyTurnResult(null, expansionTarget, collapsed);
     }
 
     private int BeginPlayerTurn()
@@ -233,7 +241,19 @@ public sealed class NetworkGame
         int energyGenerated = 0,
         NodeId? corruptionTarget = null)
     {
-        LastActionResult = new GameActionResult(succeeded, message, energySpent, energyGenerated, corruptionTarget);
+        return SetLastAction(succeeded, message, energySpent, energyGenerated, corruptionTarget, null, Array.Empty<NodeId>());
+    }
+
+    private GameActionResult SetLastAction(
+        bool succeeded,
+        string message,
+        int energySpent,
+        int energyGenerated,
+        NodeId? corruptionTarget,
+        NodeId? corruptionFocusTarget,
+        IReadOnlyList<NodeId> collapsedNodes)
+    {
+        LastActionResult = new GameActionResult(succeeded, message, energySpent, energyGenerated, corruptionTarget, corruptionFocusTarget, collapsedNodes);
         return LastActionResult;
     }
 
@@ -252,4 +272,6 @@ public sealed class NetworkGame
             _ => GameResult.InProgress
         };
     }
+
+    private sealed record EnemyTurnResult(NodeId? CorruptionTarget, NodeId? CorruptionFocusTarget, IReadOnlyList<NodeId> CollapsedNodes);
 }

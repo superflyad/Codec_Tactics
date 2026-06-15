@@ -5,4 +5,6 @@ public sealed record GameActionResult(
     string Message,
     int EnergySpent = 0,
     int EnergyGenerated = 0,
-    NodeId? CorruptionTarget = null);
+    NodeId? CorruptionTarget = null,
+    NodeId? CorruptionFocusTarget = null,
+    IReadOnlyList<NodeId>? CollapsedNodes = null);

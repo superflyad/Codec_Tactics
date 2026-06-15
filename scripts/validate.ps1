@@ -23,6 +23,7 @@ $requiredPaths = @(
     "docs",
     "docs/game-design.md",
     "docs/architecture.md",
+    "docs/network-integrity.md",
     "docs/milestones.md",
     "docs/visible-prototype.md",
     "scenes/Main.tscn",

@@ -13,6 +13,10 @@ var tests = new (string Name, Action Test)[]
     ("player cannot claim enemy-owned node", PlayerCannotClaimEnemyOwnedNode),
     ("invalid claim does not trigger enemy expansion", InvalidClaimDoesNotTriggerEnemyExpansion),
     ("player can reinforce owned node", PlayerCanReinforceOwnedNode),
+    ("connected core node has calculated network integrity", ConnectedCoreNodeHasCalculatedNetworkIntegrity),
+    ("isolation applies integrity penalty and threat", IsolationAppliesIntegrityPenaltyAndThreat),
+    ("relay support increases integrity", RelaySupportIncreasesIntegrity),
+    ("firewall support increases integrity", FirewallSupportIncreasesIntegrity),
     ("claiming spends player energy", ClaimingSpendsPlayerEnergy),
     ("resource node generates energy on next player turn", ResourceNodeGeneratesEnergyOnNextPlayerTurn),
     ("insufficient energy prevents player action", InsufficientEnergyPreventsPlayerAction),
@@ -21,6 +25,9 @@ var tests = new (string Name, Action Test)[]
     ("enemy expands into adjacent neutral node", EnemyExpandsIntoAdjacentNeutralNode),
     ("firewall resists first corruption pressure", FirewallResistsFirstCorruptionPressure),
     ("corruption pressure progresses deterministically", CorruptionPressureProgressesDeterministically),
+    ("threat progression marks exposed nodes unstable", ThreatProgressionMarksExposedNodesUnstable),
+    ("persistent instability collapses node", PersistentInstabilityCollapsesNode),
+    ("corruption targeting prioritizes unstable nodes deterministically", CorruptionTargetingPrioritizesUnstableNodesDeterministically),
     ("turn progresses after successful player action", TurnProgressesAfterSuccessfulPlayerAction),
     ("enemy expansion is deterministic", EnemyExpansionIsDeterministic),
     ("end turn resolves real corruption turn", EndTurnResolvesRealCorruptionTurn),
@@ -142,7 +149,55 @@ static void PlayerCanReinforceOwnedNode()
     var reinforced = game.ReinforceNode(NetworkGame.DefaultPlayerStart);
 
     AssertTrue(reinforced, "Expected owned node reinforcement to succeed.");
-    AssertEqual(2, start.Integrity);
+    AssertEqual(1, start.ReinforcementLevel);
+    AssertTrue(start.Integrity > NetworkRules.BaseNetworkIntegrity, "Expected calculated integrity to include reinforcement and core support.");
+}
+
+static void ConnectedCoreNodeHasCalculatedNetworkIntegrity()
+{
+    var game = NetworkGame.CreateDefault();
+    var start = game.Board.GetNode(NetworkGame.DefaultPlayerStart);
+
+    AssertEqual(7, start.Integrity);
+    AssertEqual(4, start.Threat);
+    AssertFalse(start.IsUnstable, "Expected the connected core node to start stable.");
+}
+
+static void IsolationAppliesIntegrityPenaltyAndThreat()
+{
+    var game = NetworkGame.CreateDefault();
+    var isolated = game.Board.GetNode(new NodeId(2, 0));
+    isolated.SetOwner(NodeOwner.Player);
+
+    game.RefreshNetworkRisk();
+
+    AssertEqual(1, isolated.Integrity);
+    AssertTrue(isolated.Threat >= 9, "Expected isolation, weak links, and frontier exposure to create high threat.");
+    AssertTrue(isolated.IsUnstable, "Expected isolated player node to be unstable.");
+    AssertContains("isolated from core", isolated.DangerReason);
+}
+
+static void RelaySupportIncreasesIntegrity()
+{
+    var game = NetworkGame.CreateDefault();
+    game.Board.GetNode(new NodeId(0, 1)).SetOwner(NodeOwner.Player);
+    game.Board.GetNode(new NodeId(0, 2)).SetOwner(NodeOwner.Player);
+
+    game.RefreshNetworkRisk();
+
+    var relaySupported = game.Board.GetNode(new NodeId(0, 2));
+    AssertTrue(relaySupported.Integrity >= 8, "Expected adjacent Relay support to increase integrity.");
+}
+
+static void FirewallSupportIncreasesIntegrity()
+{
+    var game = NetworkGame.CreateDefault();
+    var firewall = game.Board.GetNode(new NodeId(2, 3));
+    firewall.SetOwner(NodeOwner.Player);
+
+    game.RefreshNetworkRisk();
+
+    AssertTrue(firewall.Integrity >= 3, "Expected Firewall node support to offset isolation penalty.");
 }
 
 static void ClaimingSpendsPlayerEnergy()
@@ -242,8 +297,51 @@ static void CorruptionPressureProgressesDeterministically()
     AssertEqual(1, game.CorruptionPressure);
 
     game.EndPlayerTurn();
-    AssertEqual(NodeOwner.Enemy, game.Board.GetNode(new NodeId(2, 3)).Owner);
-    AssertEqual(0, game.CorruptionPressure);
+    AssertEqual(NodeOwner.Enemy, game.Board.GetNode(new NodeId(3, 2)).Owner);
+    AssertEqual(1, game.CorruptionPressure);
+}
+
+static void ThreatProgressionMarksExposedNodesUnstable()
+{
+    var game = NetworkGame.CreateDefault();
+    var exposed = game.Board.GetNode(new NodeId(3, 2));
+    exposed.SetOwner(NodeOwner.Player);
+
+    game.RefreshNetworkRisk();
+
+    AssertTrue(exposed.Threat > exposed.Integrity, "Expected adjacent corruption pressure to exceed isolated node integrity.");
+    AssertTrue(exposed.IsUnstable, "Expected exposed node to be unstable.");
+    AssertContains("adjacent corruption", exposed.DangerReason);
+}
+
+static void PersistentInstabilityCollapsesNode()
+{
+    var game = NetworkGame.CreateDefault();
+    var exposedId = new NodeId(3, 2);
+    game.Board.GetNode(exposedId).SetOwner(NodeOwner.Player);
+    game.RefreshNetworkRisk();
+
+    var firstTurn = game.EndPlayerTurnWithResult();
+    AssertTrue(firstTurn.Succeeded, "Expected first enemy turn to resolve.");
+    AssertEqual(NodeOwner.Player, game.Board.GetNode(exposedId).Owner);
+    AssertEqual(1, game.Board.GetNode(exposedId).UnstableTurns);
+
+    var secondTurn = game.EndPlayerTurnWithResult();
+    AssertTrue(secondTurn.Succeeded, "Expected second enemy turn to resolve.");
+    AssertEqual(NodeOwner.Enemy, game.Board.GetNode(exposedId).Owner);
+    AssertTrue(secondTurn.CollapsedNodes?.Contains(exposedId) == true, "Expected collapse event to include exposed node.");
+}
+
+static void CorruptionTargetingPrioritizesUnstableNodesDeterministically()
+{
+    var game = NetworkGame.CreateDefault();
+    var exposedId = new NodeId(3, 2);
+    game.Board.GetNode(exposedId).SetOwner(NodeOwner.Player);
+    game.RefreshNetworkRisk();
+
+    var target = CorruptionTargetPolicy.SelectExpansionTarget(game.Board);
+
+    AssertEqual(exposedId, target);
 }
 
 static void TurnProgressesAfterSuccessfulPlayerAction()

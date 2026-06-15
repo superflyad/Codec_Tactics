@@ -77,7 +77,28 @@ Current limitations:
 - Energy and resistance values are prototype constants.
 - No layers, cube visualization, advanced AI, save/load, real art, or production UI.
 
-## Milestone 3: Layers
+## Milestone 3: Network Integrity and Threat System
+
+Transform the prototype from node expansion into a strategy game where network structure matters.
+
+Exit criteria:
+
+- Every player-owned node has calculated integrity and threat.
+- Integrity accounts for distance from core, owned connection count, Relay support, Firewall support, density, reinforcement, and isolation.
+- Threat accounts for nearby corruption, corruption pressure, weak connections, frontier exposure, and isolation.
+- Nodes become unstable when threat exceeds integrity.
+- Persistent instability collapses nodes to corruption deterministically.
+- Corruption expansion prioritizes unstable, weak, and exposed targets deterministically.
+- Godot displays integrity, threat, unstable nodes, danger reasons, and collapse events.
+- Core tests cover the integrity, threat, instability, collapse, and targeting contracts.
+
+Current limitations:
+
+- Formulas are prototype balance values.
+- The board is still a fixed 4x4 2D grid.
+- No layers, cube visualization, advanced graphics, save/load, or advanced AI.
+
+## Milestone 3.5: Layers
 
 Add deeper network layers.
 

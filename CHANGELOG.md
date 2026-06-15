@@ -18,3 +18,9 @@ All notable changes to Codec_Tactics will be documented in this file.
 - Added deterministic player energy costs, Resource income, Relay claim reach, corruption pressure, and Firewall corruption resistance in `CodecTactics.Core`.
 - Updated the Godot prototype HUD and rendering to show energy, corruption pressure, node types, ownership, costs, failures, and real end-turn corruption resolution.
 - Added mechanics documentation and expanded deterministic core tests for Milestone 2 behavior.
+- Added Milestone 3 network integrity and threat calculations for player-owned nodes.
+- Added deterministic instability tracking, node collapse into corruption, and collapse event reporting.
+- Updated corruption targeting to prioritize unstable, weak, and exposed targets deterministically.
+- Updated the Godot prototype to display integrity, threat, unstable nodes, danger reasons, and collapse messages.
+- Added `docs/network-integrity.md` with formulas, examples, collapse rules, and strategy implications.
+- Added deterministic tests for integrity calculations, isolation penalties, Relay and Firewall support, threat progression, instability, collapse, and corruption targeting.
