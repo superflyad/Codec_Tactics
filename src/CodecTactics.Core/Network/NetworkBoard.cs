@@ -2,6 +2,15 @@ namespace CodecTactics.Core.Network;
 
 public sealed class NetworkBoard
 {
+    private static readonly IReadOnlyDictionary<NodeId, NodeType> DefaultNodeTypes = new Dictionary<NodeId, NodeType>
+    {
+        [new NodeId(1, 0)] = NodeType.Resource,
+        [new NodeId(0, 1)] = NodeType.Relay,
+        [new NodeId(2, 1)] = NodeType.Resource,
+        [new NodeId(1, 2)] = NodeType.Relay,
+        [new NodeId(2, 3)] = NodeType.Firewall
+    };
+
     private readonly Dictionary<NodeId, NodeState> _nodes;
     private readonly List<ConnectionState> _connections;
 
@@ -40,7 +49,12 @@ public sealed class NetworkBoard
         {
             for (var x = 0; x < width; x++)
             {
-                nodes.Add(new NodeState(new NodeId(x, y)));
+                var nodeId = new NodeId(x, y);
+                var type = width == 4 && height == 4 && DefaultNodeTypes.TryGetValue(nodeId, out var defaultType)
+                    ? defaultType
+                    : NodeType.Standard;
+
+                nodes.Add(new NodeState(nodeId, type));
 
                 if (x > 0)
                 {
@@ -96,5 +110,50 @@ public sealed class NetworkBoard
     public bool HasAdjacentOwner(NodeId nodeId, NodeOwner owner)
     {
         return GetAdjacentNodes(nodeId).Any(node => node.Owner == owner);
+    }
+
+    public bool IsReachableForPlayerClaim(NodeId nodeId)
+    {
+        if (HasAdjacentOwner(nodeId, NodeOwner.Player))
+        {
+            return true;
+        }
+
+        return Nodes
+            .Where(node => node.Owner == NodeOwner.Player && node.Type == NodeType.Relay)
+            .Any(relay => IsWithinActiveConnectionRange(relay.Id, nodeId, NetworkRules.RelayClaimRange));
+    }
+
+    private bool IsWithinActiveConnectionRange(NodeId start, NodeId target, int maxDistance)
+    {
+        var visited = new HashSet<NodeId> { start };
+        var frontier = new Queue<(NodeId Id, int Distance)>();
+        frontier.Enqueue((start, 0));
+
+        while (frontier.Count > 0)
+        {
+            var (current, distance) = frontier.Dequeue();
+            if (distance >= maxDistance)
+            {
+                continue;
+            }
+
+            foreach (var adjacent in GetAdjacentNodes(current))
+            {
+                if (!visited.Add(adjacent.Id))
+                {
+                    continue;
+                }
+
+                if (adjacent.Id.Equals(target))
+                {
+                    return true;
+                }
+
+                frontier.Enqueue((adjacent.Id, distance + 1));
+            }
+        }
+
+        return false;
     }
 }

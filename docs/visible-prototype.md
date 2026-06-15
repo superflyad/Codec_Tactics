@@ -1,6 +1,6 @@
 # Visible Prototype
 
-Milestone 1.5 adds the first launchable Godot scene for the 2D network prototype.
+Milestone 1.5 added the first launchable Godot scene for the 2D network prototype. Milestone 2 keeps the same temporary scene and connects it to the strategic node, energy, and corruption-pressure rules.
 
 ## Scope
 
@@ -10,11 +10,12 @@ Included:
 
 - 4x4 network board rendered as simple connected nodes.
 - Neutral, player-owned, and enemy/corruption nodes use distinct colors.
+- Standard, Resource, Relay, and Firewall nodes use distinct labels and outline colors.
 - Reinforced nodes show an extra ring when `NodeState.Integrity` is greater than one.
-- Clicking a valid adjacent neutral node calls `NetworkGame.ClaimNode`.
+- Clicking a valid reachable neutral node calls `NetworkGame.ClaimNodeWithResult`.
 - Invalid clicks leave the core state unchanged and update the status text.
-- The End Turn button calls `NetworkGame.ReinforceNode` on the player start node as a placeholder pass action, which still uses the current tested core turn flow.
-- HUD labels show turn, phase, status, and placeholder result state.
+- The End Turn button calls `NetworkGame.EndPlayerTurnWithResult`, which resolves the real corruption turn without reinforcing a node.
+- HUD labels show turn, phase, energy, corruption pressure, status, and result state.
 
 Excluded:
 
@@ -22,7 +23,6 @@ Excluded:
 - Cube visualization.
 - Advanced AI.
 - Save/load.
-- Resource systems.
 - Production art or animation.
 
 ## Launch

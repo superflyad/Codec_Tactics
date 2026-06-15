@@ -18,14 +18,18 @@ public partial class PrototypeScene : Control
     private readonly Color _enemyColor = new(0.86f, 0.24f, 0.28f);
     private readonly Color _outlineColor = new(0.88f, 0.9f, 0.94f);
     private readonly Color _reinforcedColor = new(0.42f, 0.86f, 1.0f);
+    private readonly Color _resourceColor = new(0.95f, 0.78f, 0.24f);
+    private readonly Color _relayColor = new(0.38f, 0.64f, 1.0f);
+    private readonly Color _firewallColor = new(0.74f, 0.42f, 0.96f);
 
     private NetworkGame _game = NetworkGame.CreateDefault();
     private Label _turnLabel = default!;
     private Label _phaseLabel = default!;
+    private Label _energyLabel = default!;
     private Label _statusLabel = default!;
     private Label _resultLabel = default!;
     private Button _endTurnButton = default!;
-    private string _status = "Click an adjacent neutral node to claim it.";
+    private string _status = $"Click a reachable neutral node to claim it for {NetworkRules.ClaimEnergyCost} energy.";
 
     public override void _Ready()
     {
@@ -33,8 +37,9 @@ public partial class PrototypeScene : Control
 
         _turnLabel = CreateHudLabel(new Vector2(32, 24), "Turn 1");
         _phaseLabel = CreateHudLabel(new Vector2(32, 52), "Phase: Player");
-        _statusLabel = CreateHudLabel(new Vector2(32, 80), _status);
-        _resultLabel = CreateHudLabel(new Vector2(32, 108), "Result: In progress");
+        _energyLabel = CreateHudLabel(new Vector2(32, 80), "Energy: 5");
+        _statusLabel = CreateHudLabel(new Vector2(32, 108), _status);
+        _resultLabel = CreateHudLabel(new Vector2(32, 136), "Result: In progress");
 
         _endTurnButton = new Button
         {
@@ -63,6 +68,7 @@ public partial class PrototypeScene : Control
             var position = GetNodePosition(node.Id);
             DrawCircle(position, NodeRadius, GetNodeColor(node));
             DrawArc(position, NodeRadius + 3f, 0f, Mathf.Tau, 48, _outlineColor, 2f);
+            DrawArc(position, NodeRadius + 6f, 0f, Mathf.Tau, 48, GetNodeTypeColor(node), 3f);
 
             if (node.Integrity > 1)
             {
@@ -70,6 +76,7 @@ public partial class PrototypeScene : Control
             }
 
             DrawString(ThemeDB.FallbackFont, position + new Vector2(-12f, 5f), $"{node.Id.X},{node.Id.Y}", HorizontalAlignment.Left, -1f, 14, Colors.Black);
+            DrawString(ThemeDB.FallbackFont, position + new Vector2(-7f, -30f), GetNodeTypeLabel(node.Type), HorizontalAlignment.Left, -1f, 14, GetNodeTypeColor(node));
         }
     }
 
@@ -101,10 +108,8 @@ public partial class PrototypeScene : Control
             return;
         }
 
-        var claimed = _game.ClaimNode(clickedNode.Value);
-        _status = claimed
-            ? $"Claimed {clickedNode}; corruption expanded."
-            : $"{clickedNode} is not adjacent to the player network.";
+        var result = _game.ClaimNodeWithResult(clickedNode.Value);
+        _status = result.Message;
         UpdateHud();
     }
 
@@ -117,10 +122,8 @@ public partial class PrototypeScene : Control
             return;
         }
 
-        var reinforced = _game.ReinforceNode(NetworkGame.DefaultPlayerStart);
-        _status = reinforced
-            ? "Turn ended; start node reinforced and corruption expanded."
-            : "End Turn is unavailable right now.";
+        var result = _game.EndPlayerTurnWithResult();
+        _status = result.Message;
         UpdateHud();
     }
 
@@ -140,6 +143,7 @@ public partial class PrototypeScene : Control
     {
         _turnLabel.Text = $"Turn: {_game.TurnNumber}";
         _phaseLabel.Text = $"Phase: {_game.Phase}";
+        _energyLabel.Text = $"Energy: {_game.PlayerEnergy} | Corruption pressure: {_game.CorruptionPressure}";
         _statusLabel.Text = $"Status: {_status}";
         _resultLabel.Text = $"Result: {FormatResult(_game.Result)}";
         _endTurnButton.Disabled = _game.Result != GameResult.InProgress;
@@ -171,6 +175,28 @@ public partial class PrototypeScene : Control
             NodeOwner.Player => _playerColor,
             NodeOwner.Enemy => _enemyColor,
             _ => _neutralColor
+        };
+    }
+
+    private Color GetNodeTypeColor(NodeState node)
+    {
+        return node.Type switch
+        {
+            NodeType.Resource => _resourceColor,
+            NodeType.Relay => _relayColor,
+            NodeType.Firewall => _firewallColor,
+            _ => _outlineColor
+        };
+    }
+
+    private static string GetNodeTypeLabel(NodeType type)
+    {
+        return type switch
+        {
+            NodeType.Resource => "R",
+            NodeType.Relay => "L",
+            NodeType.Firewall => "F",
+            _ => "S"
         };
     }
 

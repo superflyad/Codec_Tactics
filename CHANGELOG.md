@@ -14,3 +14,7 @@ All notable changes to Codec_Tactics will be documented in this file.
 - Added Milestone 1.5 visible Godot prototype with a launchable main scene, temporary board rendering, click-to-claim interaction, End Turn button, HUD status text, and core-backed state updates.
 - Added core tests for invalid claim behavior used by the Godot prototype.
 - Updated validation to build the Godot C# project when Godot CLI is available and clearly skip editor validation when it is not.
+- Added Milestone 2 strategic node mechanics with Standard, Resource, Relay, and Firewall node types.
+- Added deterministic player energy costs, Resource income, Relay claim reach, corruption pressure, and Firewall corruption resistance in `CodecTactics.Core`.
+- Updated the Godot prototype HUD and rendering to show energy, corruption pressure, node types, ownership, costs, failures, and real end-turn corruption resolution.
+- Added mechanics documentation and expanded deterministic core tests for Milestone 2 behavior.

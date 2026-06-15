@@ -14,9 +14,15 @@ public sealed class NetworkGame
 
     public int TurnNumber { get; private set; } = 1;
 
+    public int PlayerEnergy { get; private set; } = NetworkRules.InitialPlayerEnergy;
+
+    public int CorruptionPressure { get; private set; }
+
     public TurnPhase Phase { get; private set; } = TurnPhase.Player;
 
     public GameResult Result { get; private set; } = GameResult.InProgress;
+
+    public GameActionResult LastActionResult { get; private set; } = new(true, "Player turn ready.");
 
     public static NetworkGame CreateDefault()
     {
@@ -28,51 +34,80 @@ public sealed class NetworkGame
 
     public bool ClaimNode(NodeId target)
     {
+        return ClaimNodeWithResult(target).Succeeded;
+    }
+
+    public GameActionResult ClaimNodeWithResult(NodeId target)
+    {
         if (!CanAct() || !Board.Contains(target))
         {
-            return false;
+            return SetLastAction(false, "Cannot claim right now.");
         }
 
         var node = Board.GetNode(target);
-        if (node.Owner != NodeOwner.Neutral || !Board.HasAdjacentOwner(target, NodeOwner.Player))
+        if (node.Owner != NodeOwner.Neutral)
         {
-            return false;
+            return SetLastAction(false, $"{target} is already {node.Owner}.");
+        }
+
+        if (!Board.IsReachableForPlayerClaim(target))
+        {
+            return SetLastAction(false, $"{target} is outside player claim range.");
+        }
+
+        if (!SpendEnergy(NetworkRules.ClaimEnergyCost))
+        {
+            return SetLastAction(false, $"Claim needs {NetworkRules.ClaimEnergyCost} energy.");
         }
 
         node.SetOwner(NodeOwner.Player);
-        CompletePlayerAction();
-        return true;
+        var result = CompletePlayerAction($"Claimed {target} for {NetworkRules.ClaimEnergyCost} energy.", NetworkRules.ClaimEnergyCost);
+        return result;
     }
 
     public bool ReinforceNode(NodeId target)
     {
+        return ReinforceNodeWithResult(target).Succeeded;
+    }
+
+    public GameActionResult ReinforceNodeWithResult(NodeId target)
+    {
         if (!CanAct() || !Board.Contains(target))
         {
-            return false;
+            return SetLastAction(false, "Cannot reinforce right now.");
         }
 
         var node = Board.GetNode(target);
         if (node.Owner != NodeOwner.Player)
         {
-            return false;
+            return SetLastAction(false, $"{target} is not player-owned.");
+        }
+
+        if (!SpendEnergy(NetworkRules.ReinforceEnergyCost))
+        {
+            return SetLastAction(false, $"Reinforce needs {NetworkRules.ReinforceEnergyCost} energy.");
         }
 
         node.Reinforce();
-        CompletePlayerAction();
-        return true;
+        return CompletePlayerAction($"Reinforced {target} for {NetworkRules.ReinforceEnergyCost} energy.", NetworkRules.ReinforceEnergyCost);
     }
 
     public bool WeakenEnemyConnection(NodeId first, NodeId second)
     {
+        return WeakenEnemyConnectionWithResult(first, second).Succeeded;
+    }
+
+    public GameActionResult WeakenEnemyConnectionWithResult(NodeId first, NodeId second)
+    {
         if (!CanAct())
         {
-            return false;
+            return SetLastAction(false, "Cannot weaken right now.");
         }
 
         var connection = Board.FindConnection(first, second);
         if (connection is null || !connection.IsActive)
         {
-            return false;
+            return SetLastAction(false, "Connection is unavailable.");
         }
 
         var firstNode = Board.GetNode(first);
@@ -82,31 +117,62 @@ public sealed class NetworkGame
 
         if (!touchesEnemy || !reachableByPlayer)
         {
-            return false;
+            return SetLastAction(false, "Connection is not a reachable corruption link.");
+        }
+
+        if (!SpendEnergy(NetworkRules.ReinforceEnergyCost))
+        {
+            return SetLastAction(false, $"Weaken needs {NetworkRules.ReinforceEnergyCost} energy.");
         }
 
         connection.Weaken();
-        CompletePlayerAction();
-        return true;
+        return CompletePlayerAction($"Weakened corruption link for {NetworkRules.ReinforceEnergyCost} energy.", NetworkRules.ReinforceEnergyCost);
+    }
+
+    public bool EndPlayerTurn()
+    {
+        return EndPlayerTurnWithResult().Succeeded;
+    }
+
+    public GameActionResult EndPlayerTurnWithResult()
+    {
+        if (!CanAct())
+        {
+            return SetLastAction(false, "Cannot end turn right now.");
+        }
+
+        return CompletePlayerAction("Ended turn without spending energy.", 0);
     }
 
     private bool CanAct() => Phase == TurnPhase.Player && Result == GameResult.InProgress;
 
-    private void CompletePlayerAction()
+    private GameActionResult CompletePlayerAction(string actionMessage, int energySpent)
     {
         Phase = TurnPhase.Enemy;
-        ResolveEnemyTurn();
+        var corruptionTarget = ResolveEnemyTurn();
         EvaluateOutcome();
 
+        var energyGenerated = 0;
         if (Result == GameResult.InProgress)
         {
             TurnNumber++;
+            energyGenerated = BeginPlayerTurn();
             Phase = TurnPhase.Player;
         }
+
+        var spreadMessage = corruptionTarget.HasValue
+            ? $" Corruption spread to {corruptionTarget.Value}."
+            : " Corruption pressure built but did not spread.";
+        var resourceMessage = energyGenerated > 0
+            ? $" Resource nodes generated {energyGenerated} energy."
+            : string.Empty;
+
+        return SetLastAction(true, actionMessage + spreadMessage + resourceMessage, energySpent, energyGenerated, corruptionTarget);
     }
 
-    private void ResolveEnemyTurn()
+    private NodeId? ResolveEnemyTurn()
     {
+        CorruptionPressure++;
         var expansionTarget = Board.Nodes
             .Where(node => node.Owner == NodeOwner.Enemy)
             .OrderBy(node => node.Id)
@@ -122,11 +188,53 @@ public sealed class NetworkGame
         if (expansionTarget.HasValue)
         {
             var targetNode = Board.GetNode(expansionTarget.Value);
-            if (targetNode.Owner == NodeOwner.Neutral)
+            var resistance = GetCorruptionResistance(targetNode);
+            if (targetNode.Owner == NodeOwner.Neutral && CorruptionPressure >= resistance)
             {
                 targetNode.SetOwner(NodeOwner.Enemy);
+                CorruptionPressure -= resistance;
+                return targetNode.Id;
             }
         }
+
+        return null;
+    }
+
+    private int BeginPlayerTurn()
+    {
+        var generated = Board.Nodes.Count(node => node.Owner == NodeOwner.Player && node.Type == NodeType.Resource)
+            * NetworkRules.ResourceEnergyPerTurn;
+        PlayerEnergy += generated;
+        return generated;
+    }
+
+    private bool SpendEnergy(int amount)
+    {
+        if (PlayerEnergy < amount)
+        {
+            return false;
+        }
+
+        PlayerEnergy -= amount;
+        return true;
+    }
+
+    private static int GetCorruptionResistance(NodeState node)
+    {
+        return node.Type == NodeType.Firewall
+            ? NetworkRules.FirewallCorruptionResistance
+            : NetworkRules.StandardCorruptionResistance;
+    }
+
+    private GameActionResult SetLastAction(
+        bool succeeded,
+        string message,
+        int energySpent = 0,
+        int energyGenerated = 0,
+        NodeId? corruptionTarget = null)
+    {
+        LastActionResult = new GameActionResult(succeeded, message, energySpent, energyGenerated, corruptionTarget);
+        return LastActionResult;
     }
 
     private void EvaluateOutcome()

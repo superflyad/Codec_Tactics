@@ -7,15 +7,23 @@ var tests = new (string Name, Action Test)[]
     ("foundation milestone is one", () => AssertEqual(1, ProjectInfo.FoundationMilestone)),
     ("current focus documents prototype", () => AssertContains("prototype", ProjectInfo.CurrentFocus)),
     ("board creation builds fixed adjacent grid", BoardCreationBuildsFixedAdjacentGrid),
+    ("default board initializes node types", DefaultBoardInitializesNodeTypes),
     ("player can claim adjacent neutral node", PlayerCanClaimAdjacentNeutralNode),
     ("player cannot claim non-adjacent neutral node", PlayerCannotClaimNonAdjacentNeutralNode),
     ("player cannot claim enemy-owned node", PlayerCannotClaimEnemyOwnedNode),
     ("invalid claim does not trigger enemy expansion", InvalidClaimDoesNotTriggerEnemyExpansion),
     ("player can reinforce owned node", PlayerCanReinforceOwnedNode),
+    ("claiming spends player energy", ClaimingSpendsPlayerEnergy),
+    ("resource node generates energy on next player turn", ResourceNodeGeneratesEnergyOnNextPlayerTurn),
+    ("insufficient energy prevents player action", InsufficientEnergyPreventsPlayerAction),
+    ("relay extends player claim range", RelayExtendsPlayerClaimRange),
     ("player can weaken reachable enemy connection", PlayerCanWeakenReachableEnemyConnection),
     ("enemy expands into adjacent neutral node", EnemyExpandsIntoAdjacentNeutralNode),
+    ("firewall resists first corruption pressure", FirewallResistsFirstCorruptionPressure),
+    ("corruption pressure progresses deterministically", CorruptionPressureProgressesDeterministically),
     ("turn progresses after successful player action", TurnProgressesAfterSuccessfulPlayerAction),
     ("enemy expansion is deterministic", EnemyExpansionIsDeterministic),
+    ("end turn resolves real corruption turn", EndTurnResolvesRealCorruptionTurn),
 };
 
 var failed = 0;
@@ -70,6 +78,16 @@ static void BoardCreationBuildsFixedAdjacentGrid()
     AssertTrue(board.AreConnected(new NodeId(0, 0), new NodeId(1, 0)), "Expected horizontal neighbors to be connected.");
     AssertTrue(board.AreConnected(new NodeId(0, 0), new NodeId(0, 1)), "Expected vertical neighbors to be connected.");
     AssertFalse(board.AreConnected(new NodeId(0, 0), new NodeId(1, 1)), "Expected diagonal nodes to be disconnected.");
+}
+
+static void DefaultBoardInitializesNodeTypes()
+{
+    var board = NetworkBoard.CreateGrid();
+
+    AssertEqual(NodeType.Standard, board.GetNode(new NodeId(0, 0)).Type);
+    AssertEqual(NodeType.Resource, board.GetNode(new NodeId(1, 0)).Type);
+    AssertEqual(NodeType.Relay, board.GetNode(new NodeId(0, 1)).Type);
+    AssertEqual(NodeType.Firewall, board.GetNode(new NodeId(2, 3)).Type);
 }
 
 static void PlayerCanClaimAdjacentNeutralNode()
@@ -127,6 +145,60 @@ static void PlayerCanReinforceOwnedNode()
     AssertEqual(2, start.Integrity);
 }
 
+static void ClaimingSpendsPlayerEnergy()
+{
+    var game = NetworkGame.CreateDefault();
+
+    var result = game.ClaimNodeWithResult(new NodeId(0, 1));
+
+    AssertTrue(result.Succeeded, "Expected relay claim to succeed.");
+    AssertEqual(NetworkRules.InitialPlayerEnergy - NetworkRules.ClaimEnergyCost, game.PlayerEnergy);
+    AssertEqual(NetworkRules.ClaimEnergyCost, result.EnergySpent);
+}
+
+static void ResourceNodeGeneratesEnergyOnNextPlayerTurn()
+{
+    var game = NetworkGame.CreateDefault();
+
+    var result = game.ClaimNodeWithResult(new NodeId(1, 0));
+
+    AssertTrue(result.Succeeded, "Expected resource claim to succeed.");
+    AssertEqual(NetworkRules.ResourceEnergyPerTurn, result.EnergyGenerated);
+    AssertEqual(NetworkRules.InitialPlayerEnergy, game.PlayerEnergy);
+}
+
+static void InsufficientEnergyPreventsPlayerAction()
+{
+    var game = NetworkGame.CreateDefault();
+
+    for (var i = 0; i < NetworkRules.InitialPlayerEnergy; i++)
+    {
+        AssertTrue(game.ReinforceNode(NetworkGame.DefaultPlayerStart), "Expected setup reinforcement to spend energy.");
+    }
+
+    var turnBefore = game.TurnNumber;
+    var pressureBefore = game.CorruptionPressure;
+    var startIntegrity = game.Board.GetNode(NetworkGame.DefaultPlayerStart).Integrity;
+    var result = game.ReinforceNodeWithResult(NetworkGame.DefaultPlayerStart);
+
+    AssertFalse(result.Succeeded, "Expected reinforcement without energy to fail.");
+    AssertEqual(0, game.PlayerEnergy);
+    AssertEqual(turnBefore, game.TurnNumber);
+    AssertEqual(pressureBefore, game.CorruptionPressure);
+    AssertEqual(startIntegrity, game.Board.GetNode(NetworkGame.DefaultPlayerStart).Integrity);
+}
+
+static void RelayExtendsPlayerClaimRange()
+{
+    var game = NetworkGame.CreateDefault();
+
+    AssertTrue(game.ClaimNode(new NodeId(0, 1)), "Expected adjacent relay claim to succeed.");
+    var claimedThroughRelay = game.ClaimNodeWithResult(new NodeId(0, 3));
+
+    AssertTrue(claimedThroughRelay.Succeeded, "Expected relay to extend claim range by active connections.");
+    AssertEqual(NodeOwner.Player, game.Board.GetNode(new NodeId(0, 3)).Owner);
+}
+
 static void PlayerCanWeakenReachableEnemyConnection()
 {
     var game = NetworkGame.CreateDefault();
@@ -144,9 +216,34 @@ static void EnemyExpandsIntoAdjacentNeutralNode()
 {
     var game = NetworkGame.CreateDefault();
 
-    game.ReinforceNode(NetworkGame.DefaultPlayerStart);
+    game.EndPlayerTurn();
 
     AssertEqual(NodeOwner.Enemy, game.Board.GetNode(new NodeId(3, 2)).Owner);
+}
+
+static void FirewallResistsFirstCorruptionPressure()
+{
+    var game = NetworkGame.CreateDefault();
+    game.Board.GetNode(new NodeId(3, 2)).SetOwner(NodeOwner.Player);
+
+    var result = game.EndPlayerTurnWithResult();
+
+    AssertTrue(result.Succeeded, "Expected end turn to resolve.");
+    AssertEqual(NodeOwner.Neutral, game.Board.GetNode(new NodeId(2, 3)).Owner);
+    AssertEqual(1, game.CorruptionPressure);
+}
+
+static void CorruptionPressureProgressesDeterministically()
+{
+    var game = NetworkGame.CreateDefault();
+    game.Board.GetNode(new NodeId(3, 2)).SetOwner(NodeOwner.Player);
+
+    game.EndPlayerTurn();
+    AssertEqual(1, game.CorruptionPressure);
+
+    game.EndPlayerTurn();
+    AssertEqual(NodeOwner.Enemy, game.Board.GetNode(new NodeId(2, 3)).Owner);
+    AssertEqual(0, game.CorruptionPressure);
 }
 
 static void TurnProgressesAfterSuccessfulPlayerAction()
@@ -180,6 +277,18 @@ static void EnemyExpansionIsDeterministic()
 
     AssertEqual(firstEnemyNodes, secondEnemyNodes);
     AssertEqual("(3,2)|(3,3)", firstEnemyNodes);
+}
+
+static void EndTurnResolvesRealCorruptionTurn()
+{
+    var game = NetworkGame.CreateDefault();
+
+    var result = game.EndPlayerTurnWithResult();
+
+    AssertTrue(result.Succeeded, "Expected end turn to succeed.");
+    AssertEqual(0, result.EnergySpent);
+    AssertEqual(NodeOwner.Enemy, game.Board.GetNode(new NodeId(3, 2)).Owner);
+    AssertEqual(2, game.TurnNumber);
 }
 
 static void AssertTrue(bool condition, string message)

@@ -21,11 +21,12 @@
 - Keep Godot scene code thin and free of gameplay rules.
 - Status: implemented as the first visual integration slice.
 
-## Milestone 2: Turn System and Enemy Spread
+## Milestone 2: Strategic 2D Node Decisions
 
-- Extend the prototype turn system with richer phase feedback and scenario outcomes.
-- Add more expressive corruption spread rules.
-- Replace placeholder UI feedback with structured Godot-facing turn and spread results.
+- Add Standard, Resource, Relay, and Firewall node types.
+- Add player energy, action costs, Resource income, Relay claim reach, and Firewall corruption resistance.
+- Add deterministic corruption pressure and structured Godot-facing action feedback.
+- Status: implemented as the strategic 2D prototype slice.
 
 ## Milestone 3: Layers
 

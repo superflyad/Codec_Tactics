@@ -51,19 +51,31 @@ Exit criteria:
 
 Current limitations:
 
-- End Turn is a placeholder pass action that reinforces the player start node.
+- End Turn was a placeholder pass action in Milestone 1.5; Milestone 2 replaces it with a real core end-turn action.
 - Rendering is temporary debug-style UI.
 - Godot validation is optional when the CLI is unavailable.
 
-## Milestone 2: Turn System and Enemy Spread
+## Milestone 2: Strategic 2D Node Decisions
 
-Refine turn phases and deterministic corruption spread now that a visible Godot presentation exists.
+Refine the visible 2D prototype with meaningful node choices, player energy, and corruption pressure before adding layers or cube visualization.
 
 Exit criteria:
 
-- Player and enemy/corruption turns are distinct.
-- Corruption spread can be tested without Godot rendering.
-- UI communicates spread results through structured core-facing feedback instead of ad hoc status text.
+- Standard, Resource, Relay, and Firewall node types exist in core state.
+- Claiming and reinforcing spend deterministic player energy.
+- Player-owned Resource nodes generate energy at the start of each player turn.
+- Player-owned Relay nodes extend claim reach through active connections.
+- Corruption pressure increases on enemy turns and expands deterministically.
+- Firewall nodes delay corruption by requiring additional pressure.
+- End Turn resolves a real enemy/corruption turn.
+- Godot displays energy, pressure, ownership, node types, action failures, costs, and corruption spread results.
+- Core tests cover node types, energy, Relay reach, Firewall resistance, pressure progression, and deterministic turn progression.
+
+Current limitations:
+
+- Node type placement is fixed for the default 4x4 prototype.
+- Energy and resistance values are prototype constants.
+- No layers, cube visualization, advanced AI, save/load, real art, or production UI.
 
 ## Milestone 3: Layers
 

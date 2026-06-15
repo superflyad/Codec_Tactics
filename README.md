@@ -4,7 +4,7 @@ Codec_Tactics is an early-stage C# Godot project for a turn-based network tactic
 
 The player builds a growing network across layered, cube-inspired spaces. Each expansion opens useful paths, but poor choices can expose routes for enemy corruption. Complexity increases as the player descends into deeper network layers.
 
-This repository is currently at Milestone 1.5: visible Godot prototype. It contains a small deterministic core loop in pure C# plus a minimal Godot scene that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, resources, and polish.
+This repository is currently at Milestone 2: strategic 2D prototype. It contains a small deterministic core loop in pure C# plus a minimal Godot scene that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and polish.
 
 ## Current Foundation
 
@@ -14,8 +14,8 @@ This repository is currently at Milestone 1.5: visible Godot prototype. It conta
 - Console-based automated test runner with no third-party test dependency
 - Validation script for repeatable local checks
 - Documentation for architecture, milestones, contribution workflow, and Codex usage
-- Pure C# 2D network prototype with fixed grid nodes, adjacent connections, ownership, player actions, deterministic enemy spread, turn counter, and placeholder outcomes
-- Minimal Godot C# presentation that draws the board, handles node claims, exposes an End Turn button, and updates HUD text
+- Pure C# 2D network prototype with fixed grid nodes, adjacent connections, ownership, node types, energy costs, deterministic corruption pressure, turn counter, and placeholder outcomes
+- Minimal Godot C# presentation that draws the board, handles node claims, exposes a real End Turn action, and updates HUD text
 
 ## Requirements
 
@@ -32,7 +32,7 @@ Open the repository in Godot .NET 4.x or newer and run the configured main scene
 res://scenes/Main.tscn
 ```
 
-The prototype displays the current 4x4 2D network board. Click an adjacent neutral node to claim it for the player. Use End Turn to resolve the current placeholder pass action through the core turn flow. Enemy/corruption expansion happens through `CodecTactics.Core` after successful player actions.
+The prototype displays the current 4x4 2D network board. Click a reachable neutral node to claim it for the player. Use End Turn to resolve a real no-cost player pass through the core turn flow. Enemy/corruption pressure and expansion happen through `CodecTactics.Core` after successful player actions and end turns.
 
 ## Validate
 
@@ -58,26 +58,32 @@ Codec_Tactics.csproj          Godot C# project
 Codec_Tactics.sln             .NET validation solution
 ```
 
-## Milestone 1 Mechanics
+## Milestone 2 Mechanics
 
 - The default board is a fixed 4x4 orthogonal node grid.
 - Nodes can be neutral, player-owned, or enemy-owned.
 - The player starts at `(0,0)` and enemy corruption starts at `(3,3)`.
-- One successful player action resolves one deterministic enemy expansion and advances the turn.
-- Player actions currently include claiming adjacent neutral nodes, reinforcing owned nodes, and weakening reachable enemy connections.
-- Enemy corruption expands into the first adjacent neutral node by deterministic row-major node order.
+- Nodes have types: Standard, Resource, Relay, and Firewall.
+- The player has energy. Claiming costs 2 energy; reinforcing costs 1 energy.
+- Player-owned Resource nodes generate 2 energy at the start of each new player turn.
+- Player-owned Relay nodes extend claim range to neutral nodes within two active connections.
+- Corruption pressure increases by 1 each enemy turn and expands deterministically when pressure meets the target node's resistance.
+- Firewall nodes require 2 corruption pressure before corruption can claim them.
+- Player actions include claiming reachable neutral nodes, reinforcing owned nodes, weakening reachable enemy connections, and ending the turn.
 
 ## Milestone 1.5 Visible Prototype
 
 - The default board renders as temporary 2D circles and connection lines.
 - Neutral, player, enemy/corruption, and reinforced nodes have distinct visual treatments.
-- Valid adjacent neutral clicks claim nodes through `NetworkGame.ClaimNode`.
+- Node types are labeled and outlined in distinct colors.
+- Valid reachable neutral clicks claim nodes through `CodecTactics.Core`.
 - Invalid clicks do not mutate core state and update the HUD status text.
-- End Turn uses the current core reinforcement action as a simple pass action and triggers deterministic enemy expansion.
+- End Turn uses the real core corruption turn rather than a placeholder reinforcement.
+- HUD text shows turn, phase, energy, corruption pressure, status, and result state.
 
 ## Current Limitations
 
 - Godot visuals are temporary debug-style UI, not final art.
-- End Turn is a placeholder pass action implemented by reinforcing the start node because the core does not yet expose a dedicated pass command.
-- No layers, cube visualization, advanced AI, save/load, balancing, resources, or production UI.
+- Node type placement and balance values are fixed prototype constants.
+- No layers, cube visualization, advanced AI, save/load, balancing, real art, or production UI.
 - Win/loss rules are placeholders for future scenario design.
