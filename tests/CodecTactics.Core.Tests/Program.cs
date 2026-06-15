@@ -9,6 +9,8 @@ var tests = new (string Name, Action Test)[]
     ("board creation builds fixed adjacent grid", BoardCreationBuildsFixedAdjacentGrid),
     ("player can claim adjacent neutral node", PlayerCanClaimAdjacentNeutralNode),
     ("player cannot claim non-adjacent neutral node", PlayerCannotClaimNonAdjacentNeutralNode),
+    ("player cannot claim enemy-owned node", PlayerCannotClaimEnemyOwnedNode),
+    ("invalid claim does not trigger enemy expansion", InvalidClaimDoesNotTriggerEnemyExpansion),
     ("player can reinforce owned node", PlayerCanReinforceOwnedNode),
     ("player can weaken reachable enemy connection", PlayerCanWeakenReachableEnemyConnection),
     ("enemy expands into adjacent neutral node", EnemyExpandsIntoAdjacentNeutralNode),
@@ -89,6 +91,29 @@ static void PlayerCannotClaimNonAdjacentNeutralNode()
     AssertFalse(claimed, "Expected non-adjacent neutral claim to fail.");
     AssertEqual(NodeOwner.Neutral, game.Board.GetNode(new NodeId(2, 0)).Owner);
     AssertEqual(1, game.TurnNumber);
+}
+
+static void PlayerCannotClaimEnemyOwnedNode()
+{
+    var game = NetworkGame.CreateDefault();
+
+    var claimed = game.ClaimNode(NetworkGame.DefaultEnemyStart);
+
+    AssertFalse(claimed, "Expected enemy-owned node claim to fail.");
+    AssertEqual(NodeOwner.Enemy, game.Board.GetNode(NetworkGame.DefaultEnemyStart).Owner);
+    AssertEqual(1, game.TurnNumber);
+}
+
+static void InvalidClaimDoesNotTriggerEnemyExpansion()
+{
+    var game = NetworkGame.CreateDefault();
+
+    var claimed = game.ClaimNode(new NodeId(2, 0));
+
+    AssertFalse(claimed, "Expected non-adjacent claim to fail.");
+    AssertEqual(1, game.Board.Nodes.Count(node => node.Owner == NodeOwner.Enemy));
+    AssertEqual(NodeOwner.Neutral, game.Board.GetNode(new NodeId(3, 2)).Owner);
+    AssertEqual(TurnPhase.Player, game.Phase);
 }
 
 static void PlayerCanReinforceOwnedNode()

@@ -13,11 +13,19 @@
 - Provide immediate feedback for valid and invalid expansion choices.
 - Implemented in pure C# with deterministic enemy spread, turn progression, and console test coverage.
 
+## Milestone 1.5: Visible Godot Prototype
+
+- Add a launchable Godot main scene.
+- Render the tested 2D network board with temporary visual nodes and connections.
+- Route node clicks and the End Turn button through `CodecTactics.Core`.
+- Keep Godot scene code thin and free of gameplay rules.
+- Status: implemented as the first visual integration slice.
+
 ## Milestone 2: Turn System and Enemy Spread
 
 - Extend the prototype turn system with richer phase feedback and scenario outcomes.
 - Add more expressive corruption spread rules.
-- Introduce a Godot-facing presentation of turn and spread results.
+- Replace placeholder UI feedback with structured Godot-facing turn and spread results.
 
 ## Milestone 3: Layers
 

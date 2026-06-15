@@ -19,10 +19,13 @@ $requiredPaths = @(
     "ROADMAP.md",
     "CODEX.md",
     "project.godot",
+    "Codec_Tactics.csproj",
     "docs",
     "docs/game-design.md",
     "docs/architecture.md",
     "docs/milestones.md",
+    "docs/visible-prototype.md",
+    "scenes/Main.tscn",
     "scripts",
     "src/CodecTactics.Core/CodecTactics.Core.csproj",
     "tests/CodecTactics.Core.Tests/CodecTactics.Core.Tests.csproj",
@@ -42,9 +45,17 @@ if ($missing.Count -gt 0) {
 
 $godot = Get-Command godot -ErrorAction SilentlyContinue
 if ($null -eq $godot) {
+    $godot = Get-Command godot4 -ErrorAction SilentlyContinue
+}
+
+if ($null -eq $godot) {
     Write-Host "Godot CLI not found on PATH; skipping Godot editor validation."
 } else {
     Write-Host "Godot CLI found at $($godot.Source)"
+    & $godot.Source --headless --path $repoRoot --build-solutions --quit
+    if ($LASTEXITCODE -ne 0) {
+        throw "Godot editor validation failed."
+    }
 }
 
 if (-not $SkipDotNet) {

@@ -31,19 +31,39 @@ Current mechanics:
 
 Current limitations:
 
-- No Godot scene is connected to the model yet.
+- The connected Godot scene is intentionally minimal and debug-style.
 - No layered board, cube visualization, advanced AI, save/load, resources, or polish.
 - Win/loss conditions are placeholders only.
 
+## Milestone 1.5: Visible Godot Prototype
+
+Connect the tested 2D network core to the first launchable Godot scene.
+
+Exit criteria:
+
+- Godot has a configured main scene.
+- The scene renders current board nodes and active connections.
+- Neutral, player, enemy/corruption, and reinforced nodes are visually distinguishable.
+- Valid adjacent neutral clicks call core claim behavior.
+- Invalid clicks do not mutate gameplay state.
+- End Turn calls current core behavior and updates the board.
+- HUD text shows turn, phase, status, and result state.
+
+Current limitations:
+
+- End Turn is a placeholder pass action that reinforces the player start node.
+- Rendering is temporary debug-style UI.
+- Godot validation is optional when the CLI is unavailable.
+
 ## Milestone 2: Turn System and Enemy Spread
 
-Add turn phases and deterministic corruption spread.
+Refine turn phases and deterministic corruption spread now that a visible Godot presentation exists.
 
 Exit criteria:
 
 - Player and enemy/corruption turns are distinct.
 - Corruption spread can be tested without Godot rendering.
-- UI communicates spread results.
+- UI communicates spread results through structured core-facing feedback instead of ad hoc status text.
 
 ## Milestone 3: Layers
 
