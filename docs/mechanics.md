@@ -2,6 +2,8 @@
 
 This document describes the implemented 2D prototype rules. These rules live in `CodecTactics.Core`; Godot only displays state and sends player actions.
 
+The current playable mission is defined by `MissionDefinition.CreateVerticalSlice()`. It uses the same rules on one authored 5x5 board with a player core, corruption start, objective node, and objective hold win/loss conditions.
+
 ## Board and Configuration
 
 The default 4x4 prototype is defined by `BoardDefinition.CreateDefaultPrototype()`. `NetworkGame` consumes a `BoardDefinition` and a `GameConfiguration` rather than constructing a hard-coded board internally.
@@ -58,6 +60,12 @@ Each successful player action follows this sequence:
 7. Return to the player phase.
 
 Ending the turn is a real core action with no energy cost. It skips player mutation but still resolves corruption pressure and expansion.
+
+## Mission Objective
+
+The vertical-slice mission, `Secure the Uplink`, has a Firewall objective at `(3,2)`. The player wins by keeping that node player-owned after corruption resolves for 2 hold ticks.
+
+The player loses if the player core is no longer player-owned or if corruption captures the objective. Objective hold progress resets when the objective is not player-owned, and actions after game over fail without mutating the board.
 
 ## Network Integrity and Threat
 

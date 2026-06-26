@@ -7,7 +7,7 @@ public partial class PrototypeScene : Control
 {
     private const float NodeRadius = 24f;
     private const float BoardLeft = 96f;
-    private const float BoardTop = 144f;
+    private const float BoardTop = 292f;
     private const float CellSize = 96f;
 
     private readonly Color _backgroundColor = new(0.06f, 0.07f, 0.09f);
@@ -22,35 +22,60 @@ public partial class PrototypeScene : Control
     private readonly Color _relayColor = new(0.38f, 0.64f, 1.0f);
     private readonly Color _firewallColor = new(0.74f, 0.42f, 0.96f);
     private readonly Color _unstableColor = new(1.0f, 0.56f, 0.2f);
+    private readonly Color _objectiveColor = new(0.98f, 0.94f, 0.36f);
 
-    private NetworkGame _game = NetworkGame.Create(BoardDefinition.CreateDefaultPrototype());
+    private NetworkGame _game = NetworkGame.CreateVerticalSliceMission();
+    private PlayerActionMode _selectedAction = PlayerActionMode.Claim;
     private Label _turnLabel = default!;
     private Label _phaseLabel = default!;
     private Label _energyLabel = default!;
+    private Label _actionLabel = default!;
+    private Label _objectiveLabel = default!;
+    private Label _hoverLabel = default!;
     private Label _statusLabel = default!;
     private Label _resultLabel = default!;
+    private Button _claimButton = default!;
+    private Button _reinforceButton = default!;
+    private Button _weakenButton = default!;
     private Button _endTurnButton = default!;
+    private Button _restartButton = default!;
     private string _status = string.Empty;
+    private string _hoverStatus = "Hover a node to inspect it.";
 
     public override void _Ready()
     {
         MouseFilter = MouseFilterEnum.Stop;
-        _status = $"Click a reachable neutral node to claim it for {_game.Configuration.ClaimEnergyCost} energy.";
+        _status = $"Mission ready: {_game.ObjectiveText}";
 
         _turnLabel = CreateHudLabel(new Vector2(32, 24), "Turn 1");
         _phaseLabel = CreateHudLabel(new Vector2(32, 52), "Phase: Player");
         _energyLabel = CreateHudLabel(new Vector2(32, 80), "Energy: 5");
-        _statusLabel = CreateHudLabel(new Vector2(32, 108), _status);
-        _resultLabel = CreateHudLabel(new Vector2(32, 136), "Result: In progress");
+        _actionLabel = CreateHudLabel(new Vector2(32, 108), "Action: Claim");
+        _objectiveLabel = CreateHudLabel(new Vector2(32, 136), "Objective");
+        _hoverLabel = CreateHudLabel(new Vector2(32, 164), _hoverStatus);
+        _statusLabel = CreateHudLabel(new Vector2(32, 192), _status);
+        _resultLabel = CreateHudLabel(new Vector2(32, 220), "Result: In progress");
 
+        _claimButton = CreateActionButton(new Vector2(420, 24), "Claim", PlayerActionMode.Claim);
+        _reinforceButton = CreateActionButton(new Vector2(520, 24), "Reinforce", PlayerActionMode.Reinforce);
+        _weakenButton = CreateActionButton(new Vector2(650, 24), "Weaken", PlayerActionMode.Weaken);
         _endTurnButton = new Button
         {
             Text = "End Turn",
-            Position = new Vector2(420, 32),
-            Size = new Vector2(140, 40)
+            Position = new Vector2(420, 76),
+            Size = new Vector2(120, 40)
         };
         _endTurnButton.Pressed += OnEndTurnPressed;
         AddChild(_endTurnButton);
+
+        _restartButton = new Button
+        {
+            Text = "Restart Mission",
+            Position = new Vector2(560, 76),
+            Size = new Vector2(160, 40)
+        };
+        _restartButton.Pressed += OnRestartPressed;
+        AddChild(_restartButton);
 
         UpdateHud();
     }
@@ -82,6 +107,12 @@ public partial class PrototypeScene : Control
                 DrawArc(position, NodeRadius + 14f, 0f, Mathf.Tau, 48, _unstableColor, 5f);
             }
 
+            if (_game.ObjectiveNode == node.Id)
+            {
+                DrawArc(position, NodeRadius + 20f, 0f, Mathf.Tau, 48, _objectiveColor, 5f);
+                DrawString(ThemeDB.FallbackFont, position + new Vector2(-16f, -48f), "OBJ", HorizontalAlignment.Left, -1f, 14, _objectiveColor);
+            }
+
             DrawString(ThemeDB.FallbackFont, position + new Vector2(-12f, 5f), $"{node.Id.X},{node.Id.Y}", HorizontalAlignment.Left, -1f, 14, Colors.Black);
             DrawString(ThemeDB.FallbackFont, position + new Vector2(-7f, -30f), GetNodeTypeLabel(node.Type), HorizontalAlignment.Left, -1f, 14, GetNodeTypeColor(node));
             DrawString(ThemeDB.FallbackFont, position + new Vector2(-18f, 44f), $"I{node.Integrity}/T{node.Threat}", HorizontalAlignment.Left, -1f, 12, node.IsUnstable ? _unstableColor : _outlineColor);
@@ -90,6 +121,16 @@ public partial class PrototypeScene : Control
 
     public override void _GuiInput(InputEvent @event)
     {
+        if (@event is InputEventMouseMotion motionEvent)
+        {
+            var hoveredNode = FindClickedNode(motionEvent.Position);
+            _hoverStatus = hoveredNode.HasValue
+                ? $"Hover: {FormatNodeStatus(_game.Board.GetNode(hoveredNode.Value))}"
+                : "Hover a node to inspect it.";
+            UpdateHud();
+            return;
+        }
+
         if (@event is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } mouseEvent)
         {
             return;
@@ -103,20 +144,12 @@ public partial class PrototypeScene : Control
 
         if (_game.Result != GameResult.InProgress)
         {
-            _status = "Game is complete. Restart the scene to play again.";
+            _status = "Game is complete. Use Restart Mission to play again.";
             UpdateHud();
             return;
         }
 
-        var node = _game.Board.GetNode(clickedNode.Value);
-        if (node.Owner != NodeOwner.Neutral)
-        {
-            _status = FormatNodeStatus(node);
-            UpdateHud();
-            return;
-        }
-
-        var result = _game.ClaimNodeWithResult(clickedNode.Value);
+        var result = _game.ExecutePlayerAction(_selectedAction, clickedNode.Value);
         _status = result.Message;
         UpdateHud();
     }
@@ -125,7 +158,7 @@ public partial class PrototypeScene : Control
     {
         if (_game.Result != GameResult.InProgress)
         {
-            _status = "Game is complete. Restart the scene to play again.";
+            _status = "Game is complete. Use Restart Mission to play again.";
             UpdateHud();
             return;
         }
@@ -133,6 +166,33 @@ public partial class PrototypeScene : Control
         var result = _game.EndPlayerTurnWithResult();
         _status = result.Message;
         UpdateHud();
+    }
+
+    private void OnRestartPressed()
+    {
+        _game = NetworkGame.CreateVerticalSliceMission();
+        _selectedAction = PlayerActionMode.Claim;
+        _status = $"Mission restarted: {_game.ObjectiveText}";
+        _hoverStatus = "Hover a node to inspect it.";
+        UpdateHud();
+    }
+
+    private Button CreateActionButton(Vector2 position, string text, PlayerActionMode mode)
+    {
+        var button = new Button
+        {
+            Text = text,
+            Position = position,
+            Size = new Vector2(110, 40)
+        };
+        button.Pressed += () =>
+        {
+            _selectedAction = mode;
+            _status = $"Selected action: {mode}.";
+            UpdateHud();
+        };
+        AddChild(button);
+        return button;
     }
 
     private Label CreateHudLabel(Vector2 position, string text)
@@ -152,9 +212,16 @@ public partial class PrototypeScene : Control
         _turnLabel.Text = $"Turn: {_game.TurnNumber}";
         _phaseLabel.Text = $"Phase: {_game.Phase}";
         _energyLabel.Text = $"Energy: {_game.PlayerEnergy} | Corruption pressure: {_game.CorruptionPressure}";
+        _actionLabel.Text = $"Selected action: {_selectedAction}";
+        _objectiveLabel.Text = $"Objective: secure {_game.ObjectiveNode} for {_game.ObjectiveHoldTurns}/{_game.RequiredObjectiveHoldTurns} turns";
+        _hoverLabel.Text = _hoverStatus;
         _statusLabel.Text = $"Status: {_status}";
         _resultLabel.Text = $"Result: {FormatResult(_game.Result)}";
-        _endTurnButton.Disabled = _game.Result != GameResult.InProgress;
+        var gameOver = _game.Result != GameResult.InProgress;
+        _claimButton.Disabled = gameOver;
+        _reinforceButton.Disabled = gameOver;
+        _weakenButton.Disabled = gameOver;
+        _endTurnButton.Disabled = gameOver;
         QueueRedraw();
     }
 

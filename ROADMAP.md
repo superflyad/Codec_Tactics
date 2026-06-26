@@ -46,6 +46,15 @@
 - Keep Godot as a thin presentation layer that loads the default board definition.
 - Status: implemented as the board/configuration hardening slice.
 
+## Milestone 3.75: Playable Vertical Slice Mission
+
+- Define one authored mission with a fixed 5x5 board, player start, corruption start, objective node, and balanced node type placement.
+- Add objective hold win condition and loss conditions for player core collapse or objective corruption.
+- Add player action modes for Claim, Reinforce, and Weaken, plus End Turn and deterministic Restart Mission.
+- Surface selected action, hover/click feedback, energy, objective progress, collapse/corruption events, danger warnings, and clear win/loss state in the Godot prototype.
+- Keep all mission and action rules in `CodecTactics.Core`.
+- Status: implemented as the first complete start-to-finish playable mission.
+
 ## Milestone 3.5: Layers
 
 - Add deeper network layers with increasing complexity.
@@ -60,6 +69,6 @@
 
 ## Milestone 5: Vertical Slice
 
+- Expand the playable mission into a broader slice after layers and cube visualization exist.
 - Combine expansion, corruption, layers, and visualization.
-- Add one complete playable scenario.
-- Establish the first pass of game feel and tuning.
+- Establish deeper game feel, tuning, and presentation.

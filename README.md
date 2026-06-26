@@ -4,7 +4,7 @@ Codec_Tactics is an early-stage C# Godot project for a turn-based network tactic
 
 The player builds a growing network across layered, cube-inspired spaces. Each expansion opens useful paths, but poor choices can expose routes for enemy corruption. Complexity increases as the player descends into deeper network layers.
 
-This repository is currently at Milestone 3.25: engine hardening and board generalization. It contains a small deterministic core loop in pure C# plus a minimal Godot scene that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and polish.
+This repository is currently at Milestone 3.75: playable vertical slice mission. It contains a small deterministic core loop in pure C# plus a minimal Godot scene that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and polish.
 
 ## Current Foundation
 
@@ -16,7 +16,8 @@ This repository is currently at Milestone 3.25: engine hardening and board gener
 - Documentation for architecture, milestones, contribution workflow, and Codex usage
 - Pure C# 2D network prototype with configurable board definitions, adjacent connections, ownership, node types, energy costs, network integrity, threat, instability, deterministic corruption pressure, collapse, turn counter, and placeholder outcomes
 - `BoardDefinition` and `GameConfiguration` models that keep the default 4x4 prototype behavior data-driven and prepare the core for later layers and cube faces
-- Minimal Godot C# presentation that draws the board, handles node claims, exposes a real End Turn action, and updates HUD text
+- Minimal Godot C# presentation that draws the board, exposes Claim, Reinforce, Weaken, End Turn, and Restart Mission controls, and updates HUD text
+- One authored vertical-slice mission with a fixed board, objective hold win condition, loss states, player feedback, and restartable game loop
 
 ## Requirements
 
@@ -25,7 +26,7 @@ This repository is currently at Milestone 3.25: engine hardening and board gener
 
 Godot CLI is optional for validation. If it is not available, the validation script records that and still checks repository structure plus .NET build/tests.
 
-## Launch Prototype
+## Play Mission
 
 Open the repository in Godot .NET 4.x or newer and run the configured main scene:
 
@@ -33,7 +34,15 @@ Open the repository in Godot .NET 4.x or newer and run the configured main scene
 res://scenes/Main.tscn
 ```
 
-The prototype displays the current 4x4 2D network board. Click a reachable neutral node to claim it for the player. Use End Turn to resolve a real no-cost player pass through the core turn flow. Enemy/corruption pressure and expansion happen through `CodecTactics.Core` after successful player actions and end turns.
+The scene launches the vertical-slice mission, `Secure the Uplink`.
+
+- Start: player core at `(0,2)`.
+- Corruption start: `(4,4)`.
+- Objective: secure the Firewall node at `(3,2)` for 2 turns.
+- Win: claim and hold the objective for the required hold turns.
+- Lose: the player core collapses or corruption captures the objective.
+
+Use the action buttons to choose Claim, Reinforce, or Weaken. Click a node to apply the selected action, or use End Turn to let corruption act without spending energy. Hover nodes to inspect ownership, type, integrity, threat, instability, and danger reason. Restart Mission resets the authored board deterministically.
 
 ## Validate
 
@@ -59,7 +68,7 @@ Codec_Tactics.csproj          Godot C# project
 Codec_Tactics.sln             .NET validation solution
 ```
 
-## Milestone 3.25 Mechanics
+## Milestone 3.75 Mechanics
 
 - The default prototype board is a 4x4 orthogonal node grid defined by `BoardDefinition.CreateDefaultPrototype()`.
 - The core engine can initialize alternate board widths, heights, starting positions, and node type placement from `BoardDefinition`.
@@ -76,8 +85,12 @@ Codec_Tactics.sln             .NET validation solution
 - Corruption pressure increases by 1 each enemy turn and expands deterministically by prioritizing unstable, weak, and exposed targets when pressure meets the target node's resistance.
 - Firewall nodes require 2 corruption pressure before corruption can claim them.
 - Player actions include claiming reachable neutral nodes, reinforcing owned nodes, weakening reachable enemy connections, and ending the turn.
+- The vertical-slice mission uses `MissionDefinition.CreateVerticalSlice()` with a fixed 5x5 board and objective-hold win/loss rules.
+- Objective hold progress increases after successful player actions or end turns that leave the objective player-owned after corruption resolves.
+- The mission ends in loss if the player core is no longer player-owned or the objective becomes corrupted.
 - See `docs/network-integrity.md` for formulas, examples, collapse behavior, and strategy implications.
 - See `docs/board-definition.md` for board definition and configuration details.
+- See `docs/playable-vertical-slice.md` for the current mission route, feedback, tests, and limitations.
 
 ## Milestone 1.5 Visible Prototype
 
@@ -88,12 +101,13 @@ Codec_Tactics.sln             .NET validation solution
 - Invalid clicks do not mutate core state and update the HUD status text.
 - End Turn uses the real core corruption turn rather than a placeholder reinforcement.
 - HUD text shows turn, phase, energy, corruption pressure, status, and result state.
+- HUD text shows the selected action, current objective, hold progress, hover status, and win/loss result.
+- Restart Mission starts a fresh deterministic copy of the authored mission.
 
 ## Current Limitations
 
 - Godot visuals are temporary debug-style UI, not final art.
-- The default prototype still uses a single authored 4x4 scenario.
+- The playable slice is still one authored 5x5 scenario.
 - Network integrity and threat formulas are prototype balance values.
 - Alternate board definitions are engine-supported but not yet balanced scenarios.
-- No layers, cube visualization, advanced AI, save/load, balancing, real art, or production UI.
-- Win/loss rules are placeholders for future scenario design.
+- No layers, cube visualization, advanced AI, save/load, broader balancing, real art, or production UI.

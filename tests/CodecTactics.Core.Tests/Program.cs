@@ -37,6 +37,14 @@ var tests = new (string Name, Action Test)[]
     ("turn progresses after successful player action", TurnProgressesAfterSuccessfulPlayerAction),
     ("enemy expansion is deterministic", EnemyExpansionIsDeterministic),
     ("end turn resolves real corruption turn", EndTurnResolvesRealCorruptionTurn),
+    ("vertical slice mission initializes authored board", VerticalSliceMissionInitializesAuthoredBoard),
+    ("vertical slice mission wins after objective hold", VerticalSliceMissionWinsAfterObjectiveHold),
+    ("vertical slice mission loses when core collapses", VerticalSliceMissionLosesWhenCoreCollapses),
+    ("vertical slice mission loses when corruption captures objective", VerticalSliceMissionLosesWhenCorruptionCapturesObjective),
+    ("objective hold turns reset when objective is not secured", ObjectiveHoldTurnsResetWhenObjectiveIsNotSecured),
+    ("action mode routes claim reinforce and weaken", ActionModeRoutesClaimReinforceAndWeaken),
+    ("vertical slice restart is deterministic", VerticalSliceRestartIsDeterministic),
+    ("invalid actions after game over do not mutate mission", InvalidActionsAfterGameOverDoNotMutateMission),
 };
 
 var failed = 0;
@@ -492,6 +500,146 @@ static void EndTurnResolvesRealCorruptionTurn()
     AssertEqual(0, result.EnergySpent);
     AssertEqual(NodeOwner.Enemy, game.Board.GetNode(new NodeId(3, 2)).Owner);
     AssertEqual(2, game.TurnNumber);
+}
+
+static void VerticalSliceMissionInitializesAuthoredBoard()
+{
+    var game = NetworkGame.CreateVerticalSliceMission();
+
+    AssertEqual("Secure the Uplink", game.MissionDefinition?.Name);
+    AssertEqual(5, game.Board.Width);
+    AssertEqual(5, game.Board.Height);
+    AssertEqual(new NodeId(0, 2), game.PlayerCore);
+    AssertEqual(new NodeId(3, 2), game.ObjectiveNode);
+    AssertEqual(2, game.RequiredObjectiveHoldTurns);
+    AssertEqual(6, game.PlayerEnergy);
+    AssertEqual(NodeOwner.Player, game.Board.GetNode(new NodeId(0, 2)).Owner);
+    AssertEqual(NodeOwner.Enemy, game.Board.GetNode(new NodeId(4, 4)).Owner);
+    AssertEqual(NodeType.Resource, game.Board.GetNode(new NodeId(1, 2)).Type);
+    AssertEqual(NodeType.Relay, game.Board.GetNode(new NodeId(2, 2)).Type);
+    AssertEqual(NodeType.Firewall, game.Board.GetNode(new NodeId(3, 2)).Type);
+}
+
+static void VerticalSliceMissionWinsAfterObjectiveHold()
+{
+    var game = PlayToObjectiveClaim();
+
+    AssertEqual(GameResult.InProgress, game.Result);
+    AssertEqual(1, game.ObjectiveHoldTurns);
+
+    var result = game.ExecutePlayerAction(PlayerActionMode.Reinforce, game.ObjectiveNode!.Value);
+
+    AssertTrue(result.Succeeded, "Expected end turn to complete the objective hold.");
+    AssertEqual(GameResult.PlayerWin, game.Result);
+    AssertEqual(2, game.ObjectiveHoldTurns);
+    AssertContains("Mission complete", result.Message);
+}
+
+static void VerticalSliceMissionLosesWhenCoreCollapses()
+{
+    var game = NetworkGame.CreateVerticalSliceMission();
+    game.Board.GetNode(game.PlayerCore).SetOwner(NodeOwner.Enemy);
+    game.RefreshNetworkRisk();
+
+    var result = game.EndPlayerTurnWithResult();
+
+    AssertTrue(result.Succeeded, "Expected mission to evaluate after end turn.");
+    AssertEqual(GameResult.PlayerLoss, game.Result);
+    AssertEqual(0, game.ObjectiveHoldTurns);
+    AssertContains("Mission failed", result.Message);
+}
+
+static void VerticalSliceMissionLosesWhenCorruptionCapturesObjective()
+{
+    var game = NetworkGame.CreateVerticalSliceMission();
+    game.Board.GetNode(game.ObjectiveNode!.Value).SetOwner(NodeOwner.Enemy);
+    game.RefreshNetworkRisk();
+
+    var result = game.EndPlayerTurnWithResult();
+
+    AssertTrue(result.Succeeded, "Expected mission to evaluate after end turn.");
+    AssertEqual(GameResult.PlayerLoss, game.Result);
+    AssertEqual(0, game.ObjectiveHoldTurns);
+}
+
+static void ObjectiveHoldTurnsResetWhenObjectiveIsNotSecured()
+{
+    var game = PlayToObjectiveClaim();
+    AssertEqual(1, game.ObjectiveHoldTurns);
+
+    game.Board.GetNode(game.ObjectiveNode!.Value).SetOwner(NodeOwner.Neutral);
+    game.RefreshNetworkRisk();
+    var result = game.EndPlayerTurnWithResult();
+
+    AssertTrue(result.Succeeded, "Expected end turn to resolve after objective is lost.");
+    AssertEqual(GameResult.InProgress, game.Result);
+    AssertEqual(0, game.ObjectiveHoldTurns);
+}
+
+static void ActionModeRoutesClaimReinforceAndWeaken()
+{
+    var game = NetworkGame.CreateVerticalSliceMission();
+
+    var claim = game.ExecutePlayerAction(PlayerActionMode.Claim, new NodeId(1, 2));
+    AssertTrue(claim.Succeeded, "Expected claim mode to claim a reachable node.");
+    AssertEqual(NodeOwner.Player, game.Board.GetNode(new NodeId(1, 2)).Owner);
+
+    var reinforce = game.ExecutePlayerAction(PlayerActionMode.Reinforce, new NodeId(1, 2));
+    AssertTrue(reinforce.Succeeded, "Expected reinforce mode to reinforce an owned node.");
+    AssertEqual(1, game.Board.GetNode(new NodeId(1, 2)).ReinforcementLevel);
+
+    game.Board.GetNode(new NodeId(4, 3)).SetOwner(NodeOwner.Player);
+    game.RefreshNetworkRisk();
+    var connection = game.Board.FindConnection(new NodeId(4, 3), new NodeId(4, 4))
+        ?? throw new InvalidOperationException("Expected setup connection to exist.");
+    var weaken = game.ExecutePlayerAction(PlayerActionMode.Weaken, new NodeId(4, 4));
+
+    AssertTrue(weaken.Succeeded, "Expected weaken mode to attack adjacent corruption.");
+    AssertEqual(1, connection.Strength);
+}
+
+static void VerticalSliceRestartIsDeterministic()
+{
+    var first = NetworkGame.CreateVerticalSliceMission();
+    AssertTrue(first.ClaimNode(new NodeId(1, 2)), "Expected setup claim to succeed.");
+    var restarted = NetworkGame.CreateVerticalSliceMission();
+    var secondRestart = NetworkGame.CreateVerticalSliceMission();
+
+    AssertEqual(DescribeBoard(restarted.Board), DescribeBoard(secondRestart.Board));
+    AssertEqual(1, restarted.TurnNumber);
+    AssertEqual(0, restarted.ObjectiveHoldTurns);
+    AssertEqual(GameResult.InProgress, restarted.Result);
+}
+
+static void InvalidActionsAfterGameOverDoNotMutateMission()
+{
+    var game = PlayToObjectiveClaim();
+    AssertTrue(game.ExecutePlayerAction(PlayerActionMode.Reinforce, game.ObjectiveNode!.Value).Succeeded, "Expected objective reinforcement to win the mission.");
+    var boardBefore = DescribeBoard(game.Board);
+    var turnBefore = game.TurnNumber;
+    var energyBefore = game.PlayerEnergy;
+
+    var claim = game.ExecutePlayerAction(PlayerActionMode.Claim, new NodeId(0, 0));
+    var reinforce = game.ExecutePlayerAction(PlayerActionMode.Reinforce, game.PlayerCore);
+    var endTurn = game.EndPlayerTurnWithResult();
+
+    AssertFalse(claim.Succeeded, "Expected claim after game over to fail.");
+    AssertFalse(reinforce.Succeeded, "Expected reinforce after game over to fail.");
+    AssertFalse(endTurn.Succeeded, "Expected end turn after game over to fail.");
+    AssertEqual(boardBefore, DescribeBoard(game.Board));
+    AssertEqual(turnBefore, game.TurnNumber);
+    AssertEqual(energyBefore, game.PlayerEnergy);
+}
+
+static NetworkGame PlayToObjectiveClaim()
+{
+    var game = NetworkGame.CreateVerticalSliceMission();
+
+    AssertTrue(game.ExecutePlayerAction(PlayerActionMode.Claim, new NodeId(1, 2)).Succeeded, "Expected resource claim to succeed.");
+    AssertTrue(game.ExecutePlayerAction(PlayerActionMode.Claim, new NodeId(2, 2)).Succeeded, "Expected relay claim to succeed.");
+    AssertTrue(game.ExecutePlayerAction(PlayerActionMode.Claim, new NodeId(3, 2)).Succeeded, "Expected objective claim to succeed from the relay anchor.");
+
+    return game;
 }
 
 static void AssertTrue(bool condition, string message)

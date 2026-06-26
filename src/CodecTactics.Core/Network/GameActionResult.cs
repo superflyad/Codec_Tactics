@@ -7,4 +7,6 @@ public sealed record GameActionResult(
     int EnergyGenerated = 0,
     NodeId? CorruptionTarget = null,
     NodeId? CorruptionFocusTarget = null,
-    IReadOnlyList<NodeId>? CollapsedNodes = null);
+    IReadOnlyList<NodeId>? CollapsedNodes = null,
+    int ObjectiveHoldTurns = 0,
+    GameResult Result = GameResult.InProgress);

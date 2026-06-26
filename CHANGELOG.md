@@ -29,3 +29,8 @@ All notable changes to Codec_Tactics will be documented in this file.
 - Updated the Godot prototype to load the default board through `BoardDefinition`.
 - Added deterministic tests for multiple board sizes, rectangular boards, alternate spawn positions, custom board definitions, configuration defaults, and deterministic initialization.
 - Added `docs/board-definition.md` for board definition and configuration guidance.
+- Added a playable vertical-slice mission, `Secure the Uplink`, with a fixed 5x5 board, player start, corruption start, target objective, objective hold win condition, and core/objective loss conditions.
+- Added core mission state, player action mode routing, objective hold tracking, deterministic restart construction, game-over action blocking, and Godot-facing action results.
+- Updated the Godot prototype with Claim, Reinforce, Weaken, End Turn, and Restart Mission controls plus selected action, hover status, objective progress, energy, danger, result, and mission feedback.
+- Added deterministic mission tests for initialization, win/loss conditions, objective hold turns, action modes, restart determinism, and invalid actions after game over.
+- Added `docs/playable-vertical-slice.md` for the authored mission, play loop, feedback, validation, and limitations.

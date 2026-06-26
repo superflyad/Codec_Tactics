@@ -1,6 +1,6 @@
 # Visible Prototype
 
-Milestone 1.5 added the first launchable Godot scene for the 2D network prototype. Milestones 2 and 3 keep the same temporary scene and connect it to the strategic node, energy, corruption-pressure, integrity, threat, and collapse rules.
+Milestone 1.5 added the first launchable Godot scene for the 2D network prototype. Later milestones keep the same temporary scene and connect it to the strategic node, energy, corruption-pressure, integrity, threat, collapse, and vertical-slice mission rules.
 
 ## Scope
 
@@ -8,16 +8,18 @@ The scene is intentionally temporary and visual-only. It renders the existing `C
 
 Included:
 
-- 4x4 network board rendered as simple connected nodes.
+- Authored 5x5 vertical-slice mission board rendered as simple connected nodes.
 - Neutral, player-owned, and enemy/corruption nodes use distinct colors.
 - Standard, Resource, Relay, and Firewall nodes use distinct labels and outline colors.
 - Reinforced nodes show an extra ring when `NodeState.Integrity` is greater than one.
-- Clicking a valid reachable neutral node calls `NetworkGame.ClaimNodeWithResult`.
+- Action buttons select Claim, Reinforce, or Weaken and route node clicks through `NetworkGame.ExecutePlayerAction`.
 - Invalid clicks leave the core state unchanged and update the status text.
 - The End Turn button calls `NetworkGame.EndPlayerTurnWithResult`, which resolves the real corruption turn without reinforcing a node.
-- HUD labels show turn, phase, energy, corruption pressure, status, and result state.
+- Restart Mission creates a deterministic fresh mission.
+- HUD labels show turn, phase, energy, corruption pressure, selected action, objective hold progress, hover status, click status, and result state.
 - Player-owned nodes display integrity and threat values.
 - Unstable nodes display an extra orange danger ring.
+- The objective node displays an extra yellow ring.
 - Clicking owned nodes reports integrity, threat, instability progress, and the core-generated danger reason.
 - Collapse events are reported through the status text after enemy-turn resolution.
 

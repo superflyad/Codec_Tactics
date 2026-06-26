@@ -5,10 +5,11 @@ public sealed class NetworkGame
     public static readonly NodeId DefaultPlayerStart = new(0, 0);
     public static readonly NodeId DefaultEnemyStart = new(3, 3);
 
-    private NetworkGame(BoardDefinition boardDefinition, GameConfiguration configuration)
+    private NetworkGame(BoardDefinition boardDefinition, GameConfiguration configuration, MissionDefinition? missionDefinition)
     {
         BoardDefinition = boardDefinition;
         Configuration = configuration;
+        MissionDefinition = missionDefinition;
         Board = NetworkBoard.FromDefinition(boardDefinition);
         PlayerCore = boardDefinition.PlayerStart;
         PlayerEnergy = boardDefinition.StartingPlayerEnergy ?? configuration.InitialPlayerEnergy;
@@ -18,9 +19,19 @@ public sealed class NetworkGame
 
     public GameConfiguration Configuration { get; }
 
+    public MissionDefinition? MissionDefinition { get; }
+
     public NetworkBoard Board { get; }
 
     public NodeId PlayerCore { get; }
+
+    public NodeId? ObjectiveNode => MissionDefinition?.ObjectiveNode;
+
+    public int RequiredObjectiveHoldTurns => MissionDefinition?.RequiredObjectiveHoldTurns ?? 0;
+
+    public int ObjectiveHoldTurns { get; private set; }
+
+    public string ObjectiveText => MissionDefinition?.ObjectiveText ?? "No mission objective configured.";
 
     public int TurnNumber { get; private set; } = 1;
 
@@ -41,9 +52,21 @@ public sealed class NetworkGame
 
     public static NetworkGame Create(BoardDefinition boardDefinition, GameConfiguration? configuration = null)
     {
-        var game = new NetworkGame(boardDefinition, configuration ?? new GameConfiguration());
+        var game = new NetworkGame(boardDefinition, configuration ?? new GameConfiguration(), null);
         game.RefreshNetworkRisk();
         return game;
+    }
+
+    public static NetworkGame CreateMission(MissionDefinition missionDefinition, GameConfiguration? configuration = null)
+    {
+        var game = new NetworkGame(missionDefinition.BoardDefinition, configuration ?? new GameConfiguration(), missionDefinition);
+        game.RefreshNetworkRisk();
+        return game;
+    }
+
+    public static NetworkGame CreateVerticalSliceMission()
+    {
+        return CreateMission(MissionDefinition.CreateVerticalSlice());
     }
 
     public IReadOnlyList<NodeId> RefreshNetworkRisk(bool advanceInstability = false)
@@ -151,6 +174,42 @@ public sealed class NetworkGame
         return CompletePlayerAction($"Weakened corruption link for {Configuration.WeakenConnectionEnergyCost} energy.", Configuration.WeakenConnectionEnergyCost);
     }
 
+    public GameActionResult WeakenCorruptionAtNodeWithResult(NodeId target)
+    {
+        if (!CanAct() || !Board.Contains(target))
+        {
+            return SetLastAction(false, "Cannot weaken right now.");
+        }
+
+        var targetNode = Board.GetNode(target);
+        if (targetNode.Owner != NodeOwner.Enemy)
+        {
+            return SetLastAction(false, $"{target} is not corrupted.");
+        }
+
+        var playerNeighbor = Board.GetAdjacentNodes(target)
+            .Where(node => node.Owner == NodeOwner.Player)
+            .OrderBy(node => node.Id)
+            .FirstOrDefault();
+        if (playerNeighbor is null)
+        {
+            return SetLastAction(false, $"{target} has no reachable player connection to weaken.");
+        }
+
+        return WeakenEnemyConnectionWithResult(playerNeighbor.Id, target);
+    }
+
+    public GameActionResult ExecutePlayerAction(PlayerActionMode mode, NodeId target)
+    {
+        return mode switch
+        {
+            PlayerActionMode.Claim => ClaimNodeWithResult(target),
+            PlayerActionMode.Reinforce => ReinforceNodeWithResult(target),
+            PlayerActionMode.Weaken => WeakenCorruptionAtNodeWithResult(target),
+            _ => SetLastAction(false, "Unknown player action.")
+        };
+    }
+
     public bool EndPlayerTurn()
     {
         return EndPlayerTurnWithResult().Succeeded;
@@ -194,8 +253,15 @@ public sealed class NetworkGame
         var resourceMessage = energyGenerated > 0
             ? $" Resource nodes generated {energyGenerated} energy."
             : string.Empty;
+        var objectiveMessage = FormatObjectiveProgressMessage();
+        var resultMessage = Result switch
+        {
+            GameResult.PlayerWin => " Mission complete.",
+            GameResult.PlayerLoss => " Mission failed.",
+            _ => string.Empty
+        };
 
-        return SetLastAction(true, actionMessage + collapseMessage + spreadMessage + resourceMessage, energySpent, energyGenerated, enemyTurn.CorruptionTarget, enemyTurn.CorruptionFocusTarget, enemyTurn.CollapsedNodes);
+        return SetLastAction(true, actionMessage + collapseMessage + spreadMessage + resourceMessage + objectiveMessage + resultMessage, energySpent, energyGenerated, enemyTurn.CorruptionTarget, enemyTurn.CorruptionFocusTarget, enemyTurn.CollapsedNodes);
     }
 
     private EnemyTurnResult ResolveEnemyTurn()
@@ -266,12 +332,18 @@ public sealed class NetworkGame
         NodeId? corruptionFocusTarget,
         IReadOnlyList<NodeId> collapsedNodes)
     {
-        LastActionResult = new GameActionResult(succeeded, message, energySpent, energyGenerated, corruptionTarget, corruptionFocusTarget, collapsedNodes);
+        LastActionResult = new GameActionResult(succeeded, message, energySpent, energyGenerated, corruptionTarget, corruptionFocusTarget, collapsedNodes, ObjectiveHoldTurns, Result);
         return LastActionResult;
     }
 
     private void EvaluateOutcome()
     {
+        if (MissionDefinition is not null)
+        {
+            EvaluateMissionOutcome();
+            return;
+        }
+
         var playerCount = Board.Nodes.Count(node => node.Owner == NodeOwner.Player);
         var enemyCount = Board.Nodes.Count(node => node.Owner == NodeOwner.Enemy);
         var neutralCount = Board.Nodes.Count(node => node.Owner == NodeOwner.Neutral);
@@ -284,6 +356,49 @@ public sealed class NetworkGame
             ( > 0, > 0, 0) => GameResult.PlayerLoss,
             _ => GameResult.InProgress
         };
+    }
+
+    private void EvaluateMissionOutcome()
+    {
+        var core = Board.GetNode(PlayerCore);
+        var objective = Board.GetNode(MissionDefinition!.ObjectiveNode);
+
+        if (core.Owner != NodeOwner.Player)
+        {
+            ObjectiveHoldTurns = 0;
+            Result = GameResult.PlayerLoss;
+            return;
+        }
+
+        if (objective.Owner == NodeOwner.Enemy)
+        {
+            ObjectiveHoldTurns = 0;
+            Result = GameResult.PlayerLoss;
+            return;
+        }
+
+        if (objective.Owner == NodeOwner.Player)
+        {
+            ObjectiveHoldTurns++;
+        }
+        else
+        {
+            ObjectiveHoldTurns = 0;
+        }
+
+        Result = ObjectiveHoldTurns >= MissionDefinition.RequiredObjectiveHoldTurns
+            ? GameResult.PlayerWin
+            : GameResult.InProgress;
+    }
+
+    private string FormatObjectiveProgressMessage()
+    {
+        if (MissionDefinition is null)
+        {
+            return string.Empty;
+        }
+
+        return $" Objective hold: {ObjectiveHoldTurns}/{MissionDefinition.RequiredObjectiveHoldTurns}.";
     }
 
     private sealed record EnemyTurnResult(NodeId? CorruptionTarget, NodeId? CorruptionFocusTarget, IReadOnlyList<NodeId> CollapsedNodes);
