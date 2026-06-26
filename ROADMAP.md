@@ -37,6 +37,15 @@
 - Surface danger reasons in the Godot prototype.
 - Status: implemented as the network integrity strategy slice.
 
+## Milestone 3.25: Engine Hardening and Board Generalization
+
+- Move the default 4x4 prototype into a `BoardDefinition`.
+- Add configurable board dimensions, start positions, node type placement, and initial ownership.
+- Add `GameConfiguration` for costs, corruption growth, integrity constants, threat constants, and collapse timing.
+- Preserve deterministic behavior and existing gameplay balance.
+- Keep Godot as a thin presentation layer that loads the default board definition.
+- Status: implemented as the board/configuration hardening slice.
+
 ## Milestone 3.5: Layers
 
 - Add deeper network layers with increasing complexity.

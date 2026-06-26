@@ -8,6 +8,12 @@ var tests = new (string Name, Action Test)[]
     ("current focus documents prototype", () => AssertContains("prototype", ProjectInfo.CurrentFocus)),
     ("board creation builds fixed adjacent grid", BoardCreationBuildsFixedAdjacentGrid),
     ("default board initializes node types", DefaultBoardInitializesNodeTypes),
+    ("board definition supports multiple board sizes", BoardDefinitionSupportsMultipleBoardSizes),
+    ("board definition supports rectangular boards", BoardDefinitionSupportsRectangularBoards),
+    ("game supports alternate spawn positions", GameSupportsAlternateSpawnPositions),
+    ("custom board definition loads node types and ownership", CustomBoardDefinitionLoadsNodeTypesAndOwnership),
+    ("game configuration defaults preserve network rules", GameConfigurationDefaultsPreserveNetworkRules),
+    ("custom board initialization is deterministic", CustomBoardInitializationIsDeterministic),
     ("player can claim adjacent neutral node", PlayerCanClaimAdjacentNeutralNode),
     ("player cannot claim non-adjacent neutral node", PlayerCannotClaimNonAdjacentNeutralNode),
     ("player cannot claim enemy-owned node", PlayerCannotClaimEnemyOwnedNode),
@@ -95,6 +101,105 @@ static void DefaultBoardInitializesNodeTypes()
     AssertEqual(NodeType.Resource, board.GetNode(new NodeId(1, 0)).Type);
     AssertEqual(NodeType.Relay, board.GetNode(new NodeId(0, 1)).Type);
     AssertEqual(NodeType.Firewall, board.GetNode(new NodeId(2, 3)).Type);
+}
+
+static void BoardDefinitionSupportsMultipleBoardSizes()
+{
+    var definition = BoardDefinition.CreateGrid(5, 5, new NodeId(1, 1), new[] { new NodeId(4, 4) });
+    var game = NetworkGame.Create(definition);
+
+    AssertEqual(5, game.Board.Width);
+    AssertEqual(5, game.Board.Height);
+    AssertEqual(25, game.Board.Nodes.Count);
+    AssertEqual(NodeOwner.Player, game.Board.GetNode(new NodeId(1, 1)).Owner);
+    AssertEqual(NodeOwner.Enemy, game.Board.GetNode(new NodeId(4, 4)).Owner);
+}
+
+static void BoardDefinitionSupportsRectangularBoards()
+{
+    var definition = BoardDefinition.CreateGrid(3, 5, new NodeId(0, 4), new[] { new NodeId(2, 0) });
+    var board = NetworkBoard.FromDefinition(definition);
+
+    AssertEqual(3, board.Width);
+    AssertEqual(5, board.Height);
+    AssertEqual(15, board.Nodes.Count);
+    AssertEqual(22, board.Connections.Count);
+    AssertTrue(board.AreConnected(new NodeId(0, 4), new NodeId(1, 4)), "Expected rectangular board horizontal connection.");
+    AssertTrue(board.AreConnected(new NodeId(2, 0), new NodeId(2, 1)), "Expected rectangular board vertical connection.");
+}
+
+static void GameSupportsAlternateSpawnPositions()
+{
+    var definition = BoardDefinition.CreateGrid(4, 4, new NodeId(2, 2), new[] { new NodeId(0, 3) });
+    var game = NetworkGame.Create(definition);
+
+    AssertEqual(new NodeId(2, 2), game.PlayerCore);
+    AssertEqual(NodeOwner.Player, game.Board.GetNode(new NodeId(2, 2)).Owner);
+    AssertEqual(NodeOwner.Enemy, game.Board.GetNode(new NodeId(0, 3)).Owner);
+    AssertEqual(NodeOwner.Neutral, game.Board.GetNode(NetworkGame.DefaultPlayerStart).Owner);
+    AssertEqual(NodeOwner.Neutral, game.Board.GetNode(NetworkGame.DefaultEnemyStart).Owner);
+}
+
+static void CustomBoardDefinitionLoadsNodeTypesAndOwnership()
+{
+    var nodeTypes = new Dictionary<NodeId, NodeType>
+    {
+        [new NodeId(1, 0)] = NodeType.Resource,
+        [new NodeId(2, 0)] = NodeType.Relay,
+        [new NodeId(3, 1)] = NodeType.Firewall
+    };
+    var definition = BoardDefinition.CreateGrid(
+        4,
+        2,
+        new NodeId(0, 0),
+        new[] { new NodeId(3, 1) },
+        nodeTypes,
+        startingPlayerEnergy: 7,
+        metadata: new Dictionary<string, string> { ["layer"] = "future-ready" },
+        initialOwnership: new Dictionary<NodeId, NodeOwner> { [new NodeId(1, 0)] = NodeOwner.Player });
+
+    var game = NetworkGame.Create(definition);
+
+    AssertEqual(7, game.PlayerEnergy);
+    AssertEqual(NodeOwner.Player, game.Board.GetNode(new NodeId(1, 0)).Owner);
+    AssertEqual(NodeType.Resource, game.Board.GetNode(new NodeId(1, 0)).Type);
+    AssertEqual(NodeType.Relay, game.Board.GetNode(new NodeId(2, 0)).Type);
+    AssertEqual(NodeType.Firewall, game.Board.GetNode(new NodeId(3, 1)).Type);
+    AssertEqual(new NodeId(1, 0), definition.ResourceNodes.Single());
+    AssertEqual(new NodeId(2, 0), definition.RelayNodes.Single());
+    AssertEqual(new NodeId(3, 1), definition.FirewallNodes.Single());
+    AssertEqual("future-ready", definition.Metadata["layer"]);
+}
+
+static void GameConfigurationDefaultsPreserveNetworkRules()
+{
+    var configuration = new GameConfiguration();
+
+    AssertEqual(NetworkRules.InitialPlayerEnergy, configuration.InitialPlayerEnergy);
+    AssertEqual(NetworkRules.ClaimEnergyCost, configuration.ClaimEnergyCost);
+    AssertEqual(NetworkRules.ReinforceEnergyCost, configuration.ReinforceEnergyCost);
+    AssertEqual(NetworkRules.WeakenConnectionEnergyCost, configuration.WeakenConnectionEnergyCost);
+    AssertEqual(NetworkRules.ResourceEnergyPerTurn, configuration.ResourceEnergyPerTurn);
+    AssertEqual(NetworkRules.CorruptionPressureGrowthPerTurn, configuration.CorruptionPressureGrowthPerTurn);
+    AssertEqual(NetworkRules.BaseNetworkIntegrity, configuration.BaseNetworkIntegrity);
+    AssertEqual(NetworkRules.NearbyCorruptionThreat, configuration.NearbyCorruptionThreat);
+    AssertEqual(NetworkRules.InstabilityTurnsBeforeCollapse, configuration.InstabilityTurnsBeforeCollapse);
+}
+
+static void CustomBoardInitializationIsDeterministic()
+{
+    var nodeTypes = new Dictionary<NodeId, NodeType>
+    {
+        [new NodeId(2, 2)] = NodeType.Firewall,
+        [new NodeId(1, 1)] = NodeType.Resource,
+        [new NodeId(3, 0)] = NodeType.Relay
+    };
+    var definition = BoardDefinition.CreateGrid(5, 3, new NodeId(4, 2), new[] { new NodeId(0, 0), new NodeId(0, 2) }, nodeTypes);
+
+    var first = NetworkGame.Create(definition);
+    var second = NetworkGame.Create(definition);
+
+    AssertEqual(DescribeBoard(first.Board), DescribeBoard(second.Board));
 }
 
 static void PlayerCanClaimAdjacentNeutralNode()
@@ -339,7 +444,7 @@ static void CorruptionTargetingPrioritizesUnstableNodesDeterministically()
     game.Board.GetNode(exposedId).SetOwner(NodeOwner.Player);
     game.RefreshNetworkRisk();
 
-    var target = CorruptionTargetPolicy.SelectExpansionTarget(game.Board);
+    var target = CorruptionTargetPolicy.SelectExpansionTarget(game.Board, game.Configuration);
 
     AssertEqual(exposedId, target);
 }
@@ -403,4 +508,11 @@ static void AssertFalse(bool condition, string message)
     {
         throw new InvalidOperationException(message);
     }
+}
+
+static string DescribeBoard(NetworkBoard board)
+{
+    return string.Join("|", board.Nodes
+        .OrderBy(node => node.Id)
+        .Select(node => $"{node.Id}:{node.Owner}:{node.Type}:{node.Integrity}:{node.Threat}"));
 }

@@ -23,18 +23,19 @@ public partial class PrototypeScene : Control
     private readonly Color _firewallColor = new(0.74f, 0.42f, 0.96f);
     private readonly Color _unstableColor = new(1.0f, 0.56f, 0.2f);
 
-    private NetworkGame _game = NetworkGame.CreateDefault();
+    private NetworkGame _game = NetworkGame.Create(BoardDefinition.CreateDefaultPrototype());
     private Label _turnLabel = default!;
     private Label _phaseLabel = default!;
     private Label _energyLabel = default!;
     private Label _statusLabel = default!;
     private Label _resultLabel = default!;
     private Button _endTurnButton = default!;
-    private string _status = $"Click a reachable neutral node to claim it for {NetworkRules.ClaimEnergyCost} energy.";
+    private string _status = string.Empty;
 
     public override void _Ready()
     {
         MouseFilter = MouseFilterEnum.Stop;
+        _status = $"Click a reachable neutral node to claim it for {_game.Configuration.ClaimEnergyCost} energy.";
 
         _turnLabel = CreateHudLabel(new Vector2(32, 24), "Turn 1");
         _phaseLabel = CreateHudLabel(new Vector2(32, 52), "Phase: Player");
@@ -157,10 +158,10 @@ public partial class PrototypeScene : Control
         QueueRedraw();
     }
 
-    private static string FormatNodeStatus(NodeState node)
+    private string FormatNodeStatus(NodeState node)
     {
         var unstable = node.IsUnstable
-            ? $" Unstable {node.UnstableTurns}/{NetworkRules.InstabilityTurnsBeforeCollapse}."
+            ? $" Unstable {node.UnstableTurns}/{_game.Configuration.InstabilityTurnsBeforeCollapse}."
             : string.Empty;
 
         return $"{node.Id} {node.Owner} {node.Type}: integrity {node.Integrity}, threat {node.Threat}.{unstable} Reason: {node.DangerReason}";

@@ -2,15 +2,6 @@ namespace CodecTactics.Core.Network;
 
 public sealed class NetworkBoard
 {
-    private static readonly IReadOnlyDictionary<NodeId, NodeType> DefaultNodeTypes = new Dictionary<NodeId, NodeType>
-    {
-        [new NodeId(1, 0)] = NodeType.Resource,
-        [new NodeId(0, 1)] = NodeType.Relay,
-        [new NodeId(2, 1)] = NodeType.Resource,
-        [new NodeId(1, 2)] = NodeType.Relay,
-        [new NodeId(2, 3)] = NodeType.Firewall
-    };
-
     private readonly Dictionary<NodeId, NodeState> _nodes;
     private readonly List<ConnectionState> _connections;
 
@@ -32,43 +23,48 @@ public sealed class NetworkBoard
 
     public static NetworkBoard CreateGrid(int width = 4, int height = 4)
     {
-        if (width < 2)
-        {
-            throw new ArgumentOutOfRangeException(nameof(width), "The board must be at least two nodes wide.");
-        }
+        return width == 4 && height == 4
+            ? FromDefinition(BoardDefinition.CreateDefaultPrototype())
+            : FromDefinition(BoardDefinition.CreateGrid(width, height, new NodeId(0, 0), new[] { new NodeId(width - 1, height - 1) }));
+    }
 
-        if (height < 2)
-        {
-            throw new ArgumentOutOfRangeException(nameof(height), "The board must be at least two nodes high.");
-        }
-
+    public static NetworkBoard FromDefinition(BoardDefinition definition)
+    {
         var nodes = new List<NodeState>();
         var connections = new List<ConnectionState>();
 
-        for (var y = 0; y < height; y++)
+        foreach (var nodeId in definition.Nodes)
         {
-            for (var x = 0; x < width; x++)
+            var type = definition.NodeTypes.TryGetValue(nodeId, out var configuredType)
+                ? configuredType
+                : NodeType.Standard;
+            var node = new NodeState(nodeId, type);
+            if (definition.InitialOwnership.TryGetValue(nodeId, out var owner))
+            {
+                node.SetOwner(owner);
+            }
+
+            nodes.Add(node);
+        }
+
+        for (var y = 0; y < definition.Height; y++)
+        {
+            for (var x = 0; x < definition.Width; x++)
             {
                 var nodeId = new NodeId(x, y);
-                var type = width == 4 && height == 4 && DefaultNodeTypes.TryGetValue(nodeId, out var defaultType)
-                    ? defaultType
-                    : NodeType.Standard;
-
-                nodes.Add(new NodeState(nodeId, type));
-
                 if (x > 0)
                 {
-                    connections.Add(new ConnectionState(new NodeId(x - 1, y), new NodeId(x, y)));
+                    connections.Add(new ConnectionState(new NodeId(x - 1, y), nodeId));
                 }
 
                 if (y > 0)
                 {
-                    connections.Add(new ConnectionState(new NodeId(x, y - 1), new NodeId(x, y)));
+                    connections.Add(new ConnectionState(new NodeId(x, y - 1), nodeId));
                 }
             }
         }
 
-        return new NetworkBoard(width, height, nodes, connections);
+        return new NetworkBoard(definition.Width, definition.Height, nodes, connections);
     }
 
     public NodeState GetNode(NodeId nodeId)
@@ -112,7 +108,7 @@ public sealed class NetworkBoard
         return GetAdjacentNodes(nodeId).Any(node => node.Owner == owner);
     }
 
-    public bool IsReachableForPlayerClaim(NodeId nodeId)
+    public bool IsReachableForPlayerClaim(NodeId nodeId, GameConfiguration configuration)
     {
         if (HasAdjacentOwner(nodeId, NodeOwner.Player))
         {
@@ -121,7 +117,7 @@ public sealed class NetworkBoard
 
         return Nodes
             .Where(node => node.Owner == NodeOwner.Player && node.Type == NodeType.Relay)
-            .Any(relay => IsWithinActiveConnectionRange(relay.Id, nodeId, NetworkRules.RelayClaimRange));
+            .Any(relay => IsWithinActiveConnectionRange(relay.Id, nodeId, configuration.RelayClaimRange));
     }
 
     private bool IsWithinActiveConnectionRange(NodeId start, NodeId target, int maxDistance)

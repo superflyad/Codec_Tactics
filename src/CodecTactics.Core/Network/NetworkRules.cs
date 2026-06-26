@@ -5,8 +5,10 @@ public static class NetworkRules
     public const int InitialPlayerEnergy = 5;
     public const int ClaimEnergyCost = 2;
     public const int ReinforceEnergyCost = 1;
+    public const int WeakenConnectionEnergyCost = 1;
     public const int ResourceEnergyPerTurn = 2;
     public const int RelayClaimRange = 2;
+    public const int CorruptionPressureGrowthPerTurn = 1;
     public const int StandardCorruptionResistance = 1;
     public const int FirewallCorruptionResistance = 2;
     public const int BaseNetworkIntegrity = 4;
@@ -16,6 +18,7 @@ public static class NetworkRules
     public const int FirewallIntegritySupport = 3;
     public const int AdjacentSupportIntegrityBonus = 1;
     public const int DenseNetworkIntegrityBonus = 2;
+    public const int DenseNetworkAdjacentThreshold = 3;
     public const int LongChainDistancePenalty = 1;
     public const int NearbyCorruptionThreat = 4;
     public const int CorruptionPressureThreatDivisor = 2;
@@ -23,4 +26,7 @@ public static class NetworkRules
     public const int FrontierExposureThreat = 1;
     public const int IsolationThreatPenalty = 4;
     public const int InstabilityTurnsBeforeCollapse = 2;
+    public const int UnstableTargetPriority = 100;
+    public const int LowIntegrityTargetPriorityAnchor = 20;
+    public const int FirewallTargetPriorityPenalty = 4;
 }

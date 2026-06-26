@@ -4,7 +4,7 @@ Codec_Tactics is an early-stage C# Godot project for a turn-based network tactic
 
 The player builds a growing network across layered, cube-inspired spaces. Each expansion opens useful paths, but poor choices can expose routes for enemy corruption. Complexity increases as the player descends into deeper network layers.
 
-This repository is currently at Milestone 3: network integrity and threat system. It contains a small deterministic core loop in pure C# plus a minimal Godot scene that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and polish.
+This repository is currently at Milestone 3.25: engine hardening and board generalization. It contains a small deterministic core loop in pure C# plus a minimal Godot scene that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and polish.
 
 ## Current Foundation
 
@@ -14,7 +14,8 @@ This repository is currently at Milestone 3: network integrity and threat system
 - Console-based automated test runner with no third-party test dependency
 - Validation script for repeatable local checks
 - Documentation for architecture, milestones, contribution workflow, and Codex usage
-- Pure C# 2D network prototype with fixed grid nodes, adjacent connections, ownership, node types, energy costs, network integrity, threat, instability, deterministic corruption pressure, collapse, turn counter, and placeholder outcomes
+- Pure C# 2D network prototype with configurable board definitions, adjacent connections, ownership, node types, energy costs, network integrity, threat, instability, deterministic corruption pressure, collapse, turn counter, and placeholder outcomes
+- `BoardDefinition` and `GameConfiguration` models that keep the default 4x4 prototype behavior data-driven and prepare the core for later layers and cube faces
 - Minimal Godot C# presentation that draws the board, handles node claims, exposes a real End Turn action, and updates HUD text
 
 ## Requirements
@@ -58,9 +59,11 @@ Codec_Tactics.csproj          Godot C# project
 Codec_Tactics.sln             .NET validation solution
 ```
 
-## Milestone 3 Mechanics
+## Milestone 3.25 Mechanics
 
-- The default board is a fixed 4x4 orthogonal node grid.
+- The default prototype board is a 4x4 orthogonal node grid defined by `BoardDefinition.CreateDefaultPrototype()`.
+- The core engine can initialize alternate board widths, heights, starting positions, and node type placement from `BoardDefinition`.
+- Default costs, corruption growth, integrity values, threat values, and collapse timing are provided by `GameConfiguration`.
 - Nodes can be neutral, player-owned, or enemy-owned.
 - The player starts at `(0,0)` and enemy corruption starts at `(3,3)`.
 - Nodes have types: Standard, Resource, Relay, and Firewall.
@@ -74,6 +77,7 @@ Codec_Tactics.sln             .NET validation solution
 - Firewall nodes require 2 corruption pressure before corruption can claim them.
 - Player actions include claiming reachable neutral nodes, reinforcing owned nodes, weakening reachable enemy connections, and ending the turn.
 - See `docs/network-integrity.md` for formulas, examples, collapse behavior, and strategy implications.
+- See `docs/board-definition.md` for board definition and configuration details.
 
 ## Milestone 1.5 Visible Prototype
 
@@ -88,7 +92,8 @@ Codec_Tactics.sln             .NET validation solution
 ## Current Limitations
 
 - Godot visuals are temporary debug-style UI, not final art.
-- Node type placement and balance values are fixed prototype constants.
+- The default prototype still uses a single authored 4x4 scenario.
 - Network integrity and threat formulas are prototype balance values.
+- Alternate board definitions are engine-supported but not yet balanced scenarios.
 - No layers, cube visualization, advanced AI, save/load, balancing, real art, or production UI.
 - Win/loss rules are placeholders for future scenario design.

@@ -2,6 +2,14 @@
 
 This document describes the implemented 2D prototype rules. These rules live in `CodecTactics.Core`; Godot only displays state and sends player actions.
 
+## Board and Configuration
+
+The default 4x4 prototype is defined by `BoardDefinition.CreateDefaultPrototype()`. `NetworkGame` consumes a `BoardDefinition` and a `GameConfiguration` rather than constructing a hard-coded board internally.
+
+`BoardDefinition` describes board dimensions, node layout, node types, initial ownership, player start, corruption starts, optional starting player energy, and metadata reserved for future topology labels. `GameConfiguration` describes costs, corruption growth, integrity constants, threat constants, collapse timing, and corruption target priority values.
+
+The default `BoardDefinition` and default `GameConfiguration` preserve the existing Milestone 3 gameplay behavior.
+
 ## Node Types
 
 - Standard: basic node with normal claim and reinforcement behavior.
@@ -9,7 +17,7 @@ This document describes the implemented 2D prototype rules. These rules live in 
 - Relay: when player-owned, extends player claim reach to neutral nodes within two active connections.
 - Firewall: resists corruption. Neutral Firewall nodes require two corruption pressure instead of one before corruption can claim them.
 
-The default 4x4 board uses a small fixed mix of node types:
+The default 4x4 board definition uses a small authored mix of node types:
 
 - Resource: `(1,0)` and `(2,1)`
 - Relay: `(0,1)` and `(1,2)`
@@ -18,7 +26,7 @@ The default 4x4 board uses a small fixed mix of node types:
 
 ## Energy
 
-Player energy is deterministic and configured in `NetworkRules`.
+Player energy is deterministic and configured through `GameConfiguration` defaults that mirror `NetworkRules`.
 
 - Initial energy: 5
 - Claim cost: 2
@@ -65,7 +73,7 @@ Detailed formulas and examples are documented in `docs/network-integrity.md`.
 
 ## Corruption Pressure
 
-Corruption pressure starts at zero. Each enemy/corruption turn adds one pressure, then corruption checks for one expansion target.
+Corruption pressure starts at zero. By default, each enemy/corruption turn adds one pressure, then corruption checks for one expansion target.
 
 Expansion target selection is deterministic:
 

@@ -6,6 +6,7 @@ public static class NetworkIntegrityEvaluator
         NetworkBoard board,
         NodeId playerCore,
         int corruptionPressure,
+        GameConfiguration configuration,
         bool advanceInstability)
     {
         var collapsed = new List<NodeId>();
@@ -14,7 +15,7 @@ public static class NetworkIntegrityEvaluator
         {
             if (node.Owner != NodeOwner.Player)
             {
-                node.SetNetworkRisk(GetEnemyOrNeutralIntegrity(node), 0, "Stable.", advanceInstability: false);
+                node.SetNetworkRisk(GetEnemyOrNeutralIntegrity(node, configuration), 0, "Stable.", advanceInstability: false);
                 continue;
             }
 
@@ -31,47 +32,47 @@ public static class NetworkIntegrityEvaluator
             var connectedToCore = distanceFromCore.HasValue;
             var nearestCorruptionDistance = GetDistanceToOwner(board, node.Id, NodeOwner.Enemy);
 
-            var integrity = NetworkRules.BaseNetworkIntegrity
+            var integrity = configuration.BaseNetworkIntegrity
                 + node.ReinforcementLevel
-                + ownedAdjacent.Count * NetworkRules.AdjacentSupportIntegrityBonus;
+                + ownedAdjacent.Count * configuration.AdjacentSupportIntegrityBonus;
 
             if (connectedToCore)
             {
-                integrity += NetworkRules.CoreConnectionIntegrityBonus;
-                integrity -= Math.Max(0, distanceFromCore!.Value - 1) * NetworkRules.LongChainDistancePenalty;
+                integrity += configuration.CoreConnectionIntegrityBonus;
+                integrity -= Math.Max(0, distanceFromCore!.Value - 1) * configuration.LongChainDistancePenalty;
             }
             else
             {
-                integrity -= NetworkRules.IsolationIntegrityPenalty;
+                integrity -= configuration.IsolationIntegrityPenalty;
             }
 
             if (node.Type == NodeType.Relay || ownedAdjacent.Any(adjacent => adjacent.Type == NodeType.Relay))
             {
-                integrity += NetworkRules.RelayIntegritySupport;
+                integrity += configuration.RelayIntegritySupport;
             }
 
             if (node.Type == NodeType.Firewall || ownedAdjacent.Any(adjacent => adjacent.Type == NodeType.Firewall))
             {
-                integrity += NetworkRules.FirewallIntegritySupport;
+                integrity += configuration.FirewallIntegritySupport;
             }
 
-            if (ownedAdjacent.Count >= 3)
+            if (ownedAdjacent.Count >= configuration.DenseNetworkAdjacentThreshold)
             {
-                integrity += NetworkRules.DenseNetworkIntegrityBonus;
+                integrity += configuration.DenseNetworkIntegrityBonus;
             }
 
-            var threat = enemyAdjacent.Count * NetworkRules.NearbyCorruptionThreat
-                + neutralAdjacent.Count * NetworkRules.FrontierExposureThreat
-                + corruptionPressure / NetworkRules.CorruptionPressureThreatDivisor;
+            var threat = enemyAdjacent.Count * configuration.NearbyCorruptionThreat
+                + neutralAdjacent.Count * configuration.FrontierExposureThreat
+                + corruptionPressure / configuration.CorruptionPressureThreatDivisor;
 
             if (!connectedToCore)
             {
-                threat += NetworkRules.IsolationThreatPenalty;
+                threat += configuration.IsolationThreatPenalty;
             }
 
             if (ownedAdjacent.Count <= 1)
             {
-                threat += NetworkRules.WeakConnectionThreat;
+                threat += configuration.WeakConnectionThreat;
             }
 
             if (nearestCorruptionDistance.HasValue)
@@ -88,7 +89,7 @@ public static class NetworkIntegrityEvaluator
             var reason = BuildDangerReason(connectedToCore, distanceFromCore, ownedAdjacent.Count, enemyAdjacent.Count, neutralAdjacent.Count, nearestCorruptionDistance);
             node.SetNetworkRisk(integrity, threat, reason, advanceInstability);
 
-            if (node.UnstableTurns >= NetworkRules.InstabilityTurnsBeforeCollapse)
+            if (node.UnstableTurns >= configuration.InstabilityTurnsBeforeCollapse)
             {
                 collapsed.Add(node.Id);
             }
@@ -102,11 +103,11 @@ public static class NetworkIntegrityEvaluator
         return collapsed;
     }
 
-    private static int GetEnemyOrNeutralIntegrity(NodeState node)
+    private static int GetEnemyOrNeutralIntegrity(NodeState node, GameConfiguration configuration)
     {
         return node.Type == NodeType.Firewall
-            ? NetworkRules.FirewallCorruptionResistance
-            : NetworkRules.StandardCorruptionResistance;
+            ? configuration.FirewallCorruptionResistance
+            : configuration.StandardCorruptionResistance;
     }
 
     private static string BuildDangerReason(

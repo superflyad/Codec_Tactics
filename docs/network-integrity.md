@@ -2,11 +2,11 @@
 
 Milestone 3 makes network structure matter. Every player-owned node now has calculated integrity, calculated threat, instability tracking, and a deterministic collapse path.
 
-All rules live in `CodecTactics.Core`.
+All rules live in `CodecTactics.Core`. Formula values use `GameConfiguration` defaults that mirror `NetworkRules`, so scenarios can configure the engine without changing the default prototype balance.
 
 ## Integrity Formula
 
-Integrity is recalculated whenever the board changes and at enemy-turn resolution.
+Integrity is recalculated whenever the board changes and at enemy-turn resolution. The default values are:
 
 ```text
 integrity =
@@ -25,7 +25,7 @@ Integrity is clamped to a minimum of 1.
 
 ## Threat Formula
 
-Threat is recalculated with the current corruption pressure.
+Threat is recalculated with the current corruption pressure. The default values are:
 
 ```text
 threat =

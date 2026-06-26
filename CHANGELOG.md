@@ -24,3 +24,8 @@ All notable changes to Codec_Tactics will be documented in this file.
 - Updated the Godot prototype to display integrity, threat, unstable nodes, danger reasons, and collapse messages.
 - Added `docs/network-integrity.md` with formulas, examples, collapse rules, and strategy implications.
 - Added deterministic tests for integrity calculations, isolation penalties, Relay and Firewall support, threat progression, instability, collapse, and corruption targeting.
+- Added Milestone 3.25 engine hardening with `BoardDefinition` and `GameConfiguration`.
+- Generalized core initialization for alternate board dimensions, player starts, corruption starts, node type placement, starting resources, and future metadata while preserving the default 4x4 prototype.
+- Updated the Godot prototype to load the default board through `BoardDefinition`.
+- Added deterministic tests for multiple board sizes, rectangular boards, alternate spawn positions, custom board definitions, configuration defaults, and deterministic initialization.
+- Added `docs/board-definition.md` for board definition and configuration guidance.
