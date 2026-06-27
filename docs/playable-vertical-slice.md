@@ -2,7 +2,7 @@
 
 The current vertical slice is one complete authored mission named `Secure the Uplink`. It is intentionally small and uses only existing 2D network rules: claiming, reinforcing, weakening corruption, energy, corruption pressure, instability, collapse, and deterministic expansion.
 
-All mission rules live in `CodecTactics.Core`. The active MonoGame frontend displays state, lets the player choose an action mode, sends clicks to core, and renders the returned feedback. The previous Godot implementation is legacy-only.
+All mission rules live in `CodecTactics.Core`. The active MonoGame frontend displays state through a deterministic network topology, lets the player choose an action mode, sends clicks to core, and renders the returned feedback. The previous Godot implementation is legacy-only.
 
 ## Mission Definition
 
@@ -67,6 +67,8 @@ The prototype reports:
 
 Unstable player-owned nodes render with a pulsing orange danger ring. The objective renders with a pulsing yellow objective ring. Valid targets use a green outline, invalid targets are dimmed for the selected action, and the board legend decodes concise owner and node-type badges.
 
+Milestone 4 changes the active presentation from grid-first to network-first without changing mission rules. Nodes render at authored visual topology positions instead of square-cell centers. Connections are first-class animated links with ownership and corruption coloration. Core, Resource, Relay, Firewall, Objective, Standard, and Corrupted nodes use distinct silhouettes, iconography, glow, outline, and overlays before text. The camera supports smooth zoom, right or middle mouse panning, and `C` recentering so the board remains the visual focus.
+
 ## Tests
 
 Core tests cover:
@@ -84,5 +86,5 @@ Core tests cover:
 
 - The mission is one authored 5x5 board, not a campaign or procedural generator.
 - Balance values are prototype-level and tuned only for this route.
-- Visuals are temporary debug-style UI.
-- There are no layers, cubes, save/load, advanced AI, animation polish, or production art.
+- Visuals are still code-drawn prototype art, not final production assets.
+- There are no layers, cubes, save/load, advanced AI, final art, or production UI.

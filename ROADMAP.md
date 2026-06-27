@@ -81,13 +81,23 @@
 - Keep the pass presentation-only with no new gameplay rules, layers, cubes, or Godot work.
 - Status: implemented as the second clarity and game-feel pass for the MonoGame vertical slice.
 
+## Milestone 4: Visual Identity
+
+- Replace the grid-first MonoGame presentation with a network-first topology renderer.
+- Make the board dominate the screen through deterministic visual positions, animated links, glow, ownership color, corruption overlays, and compact node state indicators.
+- Differentiate Core, Resource, Relay, Firewall, Objective, Standard, and Corrupted nodes through silhouette, iconography, color, animation, and outline rather than abbreviated text.
+- Add presentation-focused camera zoom, pan, and recenter behavior with comfortable margins for larger future maps.
+- Reduce the HUD to concise action, resource, objective, status, and trace indicators so the network remains the primary visual focus.
+- Keep the pass presentation-only with no new gameplay rules, layers, cubes, or Godot work.
+- Status: implemented as the first visual identity pass for the MonoGame vertical slice.
+
 ## Milestone 3.5: Layers
 
 - Add deeper network layers with increasing complexity.
 - Define transitions between layers.
 - Connect player progression to layer descent.
 
-## Milestone 4: Cube Visualization
+## Future Visualization: Cube
 
 - Explore cube-based visualization for layered network space.
 - Keep core rules separate from rendering.

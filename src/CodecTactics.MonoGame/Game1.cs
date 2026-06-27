@@ -16,27 +16,58 @@ namespace CodecTactics.MonoGame;
 
 public class Game1 : Game
 {
-    private const int WindowWidth = 1280;
-    private const int WindowHeight = 820;
-    private const int HudWidth = 330;
-    private const int NodeSize = 82;
-    private const int CellSize = 118;
-    private const int ButtonHeight = 42;
+    private const int WindowWidth = 1360;
+    private const int WindowHeight = 860;
+    private const int HudWidth = 286;
+    private const int ButtonHeight = 38;
     private const int TextPadding = 12;
-    private const int MaxLogEntries = 5;
+    private const int MaxLogEntries = 4;
+    private const float NodeWorldRadius = 42f;
+    private const float CameraMargin = 120f;
 
-    private static readonly XnaColor BackgroundColor = new(13, 17, 23);
-    private static readonly XnaColor PanelColor = new(28, 34, 45);
-    private static readonly XnaColor PanelBorderColor = new(84, 94, 112);
+    private static readonly XnaColor BackgroundColor = new(7, 10, 15);
+    private static readonly XnaColor NetworkSurfaceColor = new(9, 15, 24);
+    private static readonly XnaColor PanelColor = new(20, 25, 33, 238);
+    private static readonly XnaColor PanelBorderColor = new(66, 78, 96);
     private static readonly XnaColor TextColor = new(232, 238, 247);
-    private static readonly XnaColor MutedTextColor = new(170, 181, 196);
-    private static readonly XnaColor AccentColor = new(87, 187, 255);
-    private static readonly XnaColor ValidMoveColor = new(93, 222, 137);
-    private static readonly XnaColor ObjectiveColor = new(246, 219, 79);
+    private static readonly XnaColor MutedTextColor = new(151, 164, 184);
+    private static readonly XnaColor AccentColor = new(75, 190, 235);
+    private static readonly XnaColor ValidMoveColor = new(92, 224, 145);
+    private static readonly XnaColor ObjectiveColor = new(249, 219, 83);
     private static readonly XnaColor WarningColor = new(255, 154, 70);
-    private static readonly XnaColor LossColor = new(218, 72, 85);
-    private static readonly XnaColor WinColor = new(83, 202, 132);
-    private static readonly XnaColor DisabledOverlayColor = new(10, 12, 16, 115);
+    private static readonly XnaColor LossColor = new(225, 68, 87);
+    private static readonly XnaColor WinColor = new(85, 210, 135);
+    private static readonly XnaColor NeutralColor = new(70, 82, 101);
+    private static readonly XnaColor DisabledOverlayColor = new(4, 7, 12, 150);
+
+    private static readonly IReadOnlyDictionary<NodeId, Vector2> VerticalSliceTopology = new Dictionary<NodeId, Vector2>
+    {
+        [new NodeId(0, 0)] = new(-280f, -250f),
+        [new NodeId(1, 0)] = new(-120f, -300f),
+        [new NodeId(2, 0)] = new(60f, -260f),
+        [new NodeId(3, 0)] = new(220f, -310f),
+        [new NodeId(4, 0)] = new(370f, -220f),
+        [new NodeId(0, 1)] = new(-350f, -90f),
+        [new NodeId(1, 1)] = new(-170f, -115f),
+        [new NodeId(2, 1)] = new(5f, -90f),
+        [new NodeId(3, 1)] = new(170f, -130f),
+        [new NodeId(4, 1)] = new(340f, -55f),
+        [new NodeId(0, 2)] = new(-410f, 75f),
+        [new NodeId(1, 2)] = new(-220f, 70f),
+        [new NodeId(2, 2)] = new(-30f, 50f),
+        [new NodeId(3, 2)] = new(170f, 55f),
+        [new NodeId(4, 2)] = new(350f, 95f),
+        [new NodeId(0, 3)] = new(-330f, 235f),
+        [new NodeId(1, 3)] = new(-150f, 220f),
+        [new NodeId(2, 3)] = new(35f, 245f),
+        [new NodeId(3, 3)] = new(215f, 225f),
+        [new NodeId(4, 3)] = new(390f, 270f),
+        [new NodeId(0, 4)] = new(-240f, 380f),
+        [new NodeId(1, 4)] = new(-45f, 355f),
+        [new NodeId(2, 4)] = new(130f, 385f),
+        [new NodeId(3, 4)] = new(300f, 360f),
+        [new NodeId(4, 4)] = new(470f, 395f)
+    };
 
     private readonly GraphicsDeviceManager _graphics;
     private readonly Dictionary<TextKey, Texture2D> _textCache = new();
@@ -49,10 +80,14 @@ public class Game1 : Game
     private KeyboardState _previousKeyboard;
     private NetworkGame _game = NetworkGame.CreateVerticalSliceMission();
     private PlayerActionMode _selectedAction = PlayerActionMode.Claim;
-    private string _status = "Mission ready. Select an action and claim toward the objective.";
+    private string _status = "Mission ready. Expand toward the uplink.";
     private string _invalidReason = string.Empty;
     private NodeState _hoveredNode;
     private NodeId? _selectedNodeId;
+    private Vector2 _cameraCenter;
+    private Vector2 _targetCameraCenter;
+    private float _zoom = 1f;
+    private float _targetZoom = 1f;
     private double _totalSeconds;
 
     public Game1()
@@ -66,8 +101,9 @@ public class Game1 : Game
 
     protected override void Initialize()
     {
-        Window.Title = "Codec_Tactics MonoGame";
-        Log("Mission ready. Reach and hold the Objective.");
+        Window.Title = "Codec_Tactics";
+        RecenterCamera(immediate: true);
+        Log("Reach and hold the uplink.");
         base.Initialize();
     }
 
@@ -99,6 +135,9 @@ public class Game1 : Game
             Exit();
         }
 
+        HandleCameraInput(mouse, keyboard);
+        _cameraCenter = Vector2.Lerp(_cameraCenter, _targetCameraCenter, 0.18f);
+        _zoom = MathHelper.Lerp(_zoom, _targetZoom, 0.18f);
         _hoveredNode = GetNodeAt(mouse.Position);
 
         if (WasPressed(keyboard, Keys.D1))
@@ -121,13 +160,17 @@ public class Game1 : Game
         {
             RestartMission();
         }
+        else if (WasPressed(keyboard, Keys.C))
+        {
+            RecenterCamera(immediate: false);
+        }
 
         if (mouse.LeftButton == ButtonState.Pressed && _previousMouse.LeftButton == ButtonState.Released)
         {
             HandleClick(mouse.Position);
         }
 
-        Window.Title = $"Codec_Tactics MonoGame | {_selectedAction} | Turn {_game.TurnNumber} | Energy {_game.PlayerEnergy} | {_game.Result}";
+        Window.Title = $"Codec_Tactics | {_selectedAction} | Turn {_game.TurnNumber} | Energy {_game.PlayerEnergy} | {_game.Result}";
         _previousKeyboard = keyboard;
         _previousMouse = mouse;
         base.Update(gameTime);
@@ -138,7 +181,7 @@ public class Game1 : Game
         GraphicsDevice.Clear(BackgroundColor);
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-        DrawBoard();
+        DrawNetwork();
         DrawHud();
         DrawHoverTooltip();
         DrawResultBanner();
@@ -147,95 +190,208 @@ public class Game1 : Game
         base.Draw(gameTime);
     }
 
-    private void DrawBoard()
+    private void DrawNetwork()
     {
-        var boardBounds = GetBoardBounds();
-        DrawText("Secure the Uplink", boardBounds.X, 36, 28, TextColor);
-        DrawText(_game.ObjectiveText, boardBounds.X, 72, 16, MutedTextColor, boardBounds.Width + 40);
-        DrawLegend(boardBounds.X, 110, boardBounds.Width);
+        var viewport = GetBoardViewport();
+        Fill(viewport, NetworkSurfaceColor);
+        DrawNetworkBackdrop(viewport);
 
         foreach (var connection in _game.Board.Connections)
         {
-            var start = GetNodeCenter(connection.First);
-            var end = GetNodeCenter(connection.Second);
-            var color = connection.IsActive ? new XnaColor(72, 82, 99) : new XnaColor(38, 43, 52);
-            DrawLine(start, end, color, connection.IsActive ? 5 : 3);
+            DrawConnection(connection);
         }
 
-        foreach (var node in _game.Board.Nodes.OrderBy(node => node.Id.Y).ThenBy(node => node.Id.X))
+        foreach (var node in _game.Board.Nodes.OrderBy(node => GetNodeWorldPosition(node.Id).Y))
         {
             DrawNode(node);
+        }
+
+        DrawText("CODEC_TACTICS", viewport.X + 18, viewport.Y + 16, 22, TextColor);
+        DrawText(_game.ObjectiveText, viewport.X + 20, viewport.Y + 48, 14, MutedTextColor, viewport.Width - 42);
+    }
+
+    private void DrawNetworkBackdrop(XnaRectangle viewport)
+    {
+        var drift = (float)(_totalSeconds * 18d % 42d);
+        for (var x = viewport.X - 60; x < viewport.Right + 60; x += 42)
+        {
+            DrawLine(new Vector2(x + drift, viewport.Y), new Vector2(x - 140 + drift, viewport.Bottom), new XnaColor(23, 39, 55, 76), 1);
+        }
+
+        for (var y = viewport.Y + 78; y < viewport.Bottom; y += 78)
+        {
+            DrawLine(new Vector2(viewport.X, y), new Vector2(viewport.Right, y), new XnaColor(20, 36, 52, 52), 1);
+        }
+
+        DrawRectangle(viewport, new XnaColor(36, 67, 91), 2);
+    }
+
+    private void DrawConnection(ConnectionState connection)
+    {
+        var startNode = _game.Board.GetNode(connection.First);
+        var endNode = _game.Board.GetNode(connection.Second);
+        var start = WorldToScreen(GetNodeWorldPosition(connection.First));
+        var end = WorldToScreen(GetNodeWorldPosition(connection.Second));
+        var active = connection.IsActive;
+        var baseColor = GetConnectionColor(startNode, endNode, active);
+        var thickness = Math.Max(2, (int)(active ? 6 * _zoom : 3 * _zoom));
+
+        DrawLine(start, end, new XnaColor(7, 12, 19, 210), thickness + 5);
+        DrawLine(start, end, baseColor, thickness);
+
+        if (!active)
+        {
+            DrawLine(start, end, new XnaColor(95, 103, 116, 95), 1);
+            return;
+        }
+
+        var flowColor = GetFlowColor(startNode, endNode);
+        var edge = end - start;
+        var length = edge.Length();
+        if (length <= 0f)
+        {
+            return;
+        }
+
+        var direction = Vector2.Normalize(edge);
+        for (var i = 0; i < 3; i++)
+        {
+            var t = (float)((_totalSeconds * 0.34d + i * 0.31d) % 1d);
+            var position = start + direction * (length * t);
+            var particle = new XnaRectangle((int)position.X - 4, (int)position.Y - 4, 8, 8);
+            Fill(particle, flowColor);
         }
     }
 
     private void DrawNode(NodeState node)
     {
-        var center = GetNodeCenter(node.Id);
-        var bounds = new XnaRectangle(
-            (int)center.X - NodeSize / 2,
-            (int)center.Y - NodeSize / 2,
-            NodeSize,
-            NodeSize);
+        var center = WorldToScreen(GetNodeWorldPosition(node.Id));
+        var radius = MathHelper.Clamp(NodeWorldRadius * _zoom, 30f, 54f);
         var isHovered = _hoveredNode?.Id == node.Id;
         var isSelected = _selectedNodeId == node.Id;
         var isObjective = _game.ObjectiveNode == node.Id;
         var preview = GetActionPreview(node);
-        var isValid = preview.IsValid;
         var canActOnAnyNode = _game.Result == GameResult.InProgress && HasAnyValidTargetForSelectedAction();
+        var ownerColor = GetOwnerColor(node.Owner);
+        var typeColor = GetTypeColor(node, isObjective);
+        var pulse = GetPulse(3.1f, node.Id.X * 0.21f + node.Id.Y * 0.13f);
 
-        Fill(bounds, GetOwnerColor(node.Owner));
+        DrawCircleOutline(center, radius + 15f + pulse * 5f, new XnaColor(typeColor.R, typeColor.G, typeColor.B, node.Owner == NodeOwner.Neutral ? (byte)42 : (byte)95), 2);
+        DrawCircleOutline(center, radius + 8f, new XnaColor(ownerColor.R, ownerColor.G, ownerColor.B, (byte)105), 3);
 
-        if (node.Type != NodeType.Standard)
+        if (preview.IsValid)
         {
-            Fill(new XnaRectangle(bounds.X + 7, bounds.Y + 7, bounds.Width - 14, 12), GetTypeColor(node.Type));
-        }
-
-        if (isValid)
-        {
-            DrawRectangle(Grow(bounds, 9), ValidMoveColor, 4);
+            DrawCircleOutline(center, radius + 20f + pulse * 3f, ValidMoveColor, 3);
         }
         else if (canActOnAnyNode)
         {
-            Fill(bounds, DisabledOverlayColor);
-            DrawLine(new Vector2(bounds.X + 13, bounds.Y + 13), new Vector2(bounds.Right - 13, bounds.Bottom - 13), new XnaColor(119, 130, 148), 3);
+            DrawCircle(center, radius + 4f, DisabledOverlayColor);
         }
 
         if (isObjective)
         {
-            var pulse = GetPulseAmount(4, 4);
-            DrawRectangle(Grow(bounds, pulse), ObjectiveColor, 5);
+            DrawCircleOutline(center, radius + 26f + pulse * 8f, ObjectiveColor, 4);
         }
         else if (node.IsUnstable)
         {
-            var pulse = GetPulseAmount(4, 4);
-            DrawRectangle(Grow(bounds, pulse), WarningColor, 4);
+            DrawCircleOutline(center, radius + 23f + pulse * 8f, WarningColor, 4);
         }
-        else
+
+        DrawNodeSilhouette(node, center, radius, ownerColor, typeColor, isObjective);
+
+        if (node.Owner == NodeOwner.Enemy)
         {
-            DrawRectangle(bounds, new XnaColor(221, 226, 235), 2);
+            DrawCorruptionOverlay(center, radius, pulse);
+        }
+
+        if (node.Owner == NodeOwner.Player)
+        {
+            DrawIntegrityBar(node, center, radius);
         }
 
         if (isSelected)
         {
-            DrawRectangle(Grow(bounds, 14), XnaColor.White, 3);
+            DrawCircleOutline(center, radius + 31f, XnaColor.White, 3);
         }
 
         if (isHovered)
         {
-            DrawRectangle(Grow(bounds, 18), AccentColor, 3);
+            DrawCircleOutline(center, radius + 37f, AccentColor, 3);
+        }
+    }
+
+    private void DrawNodeSilhouette(NodeState node, Vector2 center, float radius, XnaColor ownerColor, XnaColor typeColor, bool isObjective)
+    {
+        var fill = Blend(ownerColor, typeColor, node.Type == NodeType.Standard && !isObjective ? 0.14f : 0.32f);
+        var outline = node.Owner == NodeOwner.Enemy ? LossColor : typeColor;
+        var iconColor = node.Owner == NodeOwner.Enemy ? new XnaColor(255, 189, 191) : TextColor;
+
+        if (node.Id == _game.PlayerCore)
+        {
+            DrawCircle(center, radius, fill);
+            DrawCircleOutline(center, radius, AccentColor, 4);
+            DrawCircleOutline(center, radius * 0.62f, TextColor, 3);
+            DrawLine(center + new Vector2(-radius * 0.36f, 0), center + new Vector2(radius * 0.36f, 0), iconColor, 4);
+            DrawLine(center + new Vector2(0, -radius * 0.36f), center + new Vector2(0, radius * 0.36f), iconColor, 4);
+            return;
         }
 
-        DrawCenteredText(GetOwnerIcon(node.Owner), bounds.X + 6, bounds.Y + 21, bounds.Width - 12, 21, 20, TextColor);
-        DrawCenteredText(GetTypeBadge(node), bounds.X + 7, bounds.Y + 45, bounds.Width - 14, 16, 12, node.Type == NodeType.Standard ? MutedTextColor : TextColor);
+        if (isObjective)
+        {
+            DrawShield(center, radius, fill, ObjectiveColor);
+            DrawCircleOutline(center, radius * 0.48f, ObjectiveColor, 3);
+            DrawLine(center + new Vector2(-radius * 0.35f, 0), center + new Vector2(radius * 0.35f, 0), ObjectiveColor, 3);
+            DrawLine(center + new Vector2(0, -radius * 0.35f), center + new Vector2(0, radius * 0.35f), ObjectiveColor, 3);
+            return;
+        }
 
-        if (node.Owner == NodeOwner.Player)
+        switch (node.Type)
         {
-            DrawCenteredText($"I {node.Integrity}  T {node.Threat}", bounds.X + 4, bounds.Bottom - 20, bounds.Width - 8, 14, 11, TextColor);
+            case NodeType.Resource:
+                DrawDiamond(center, radius, fill, outline);
+                DrawLine(center + new Vector2(-radius * 0.34f, radius * 0.08f), center + new Vector2(radius * 0.34f, radius * 0.08f), iconColor, 4);
+                DrawLine(center + new Vector2(-radius * 0.2f, -radius * 0.12f), center + new Vector2(radius * 0.2f, -radius * 0.12f), iconColor, 4);
+                break;
+            case NodeType.Relay:
+                DrawHexagon(center, radius, fill, outline);
+                DrawCircle(center, radius * 0.12f, iconColor);
+                DrawLine(center, center + new Vector2(0, -radius * 0.45f), iconColor, 4);
+                DrawLine(center, center + new Vector2(-radius * 0.42f, radius * 0.25f), iconColor, 4);
+                DrawLine(center, center + new Vector2(radius * 0.42f, radius * 0.25f), iconColor, 4);
+                break;
+            case NodeType.Firewall:
+                DrawShield(center, radius, fill, outline);
+                DrawLine(center + new Vector2(-radius * 0.34f, -radius * 0.16f), center + new Vector2(radius * 0.34f, -radius * 0.16f), iconColor, 4);
+                DrawLine(center + new Vector2(-radius * 0.42f, radius * 0.05f), center + new Vector2(radius * 0.42f, radius * 0.05f), iconColor, 4);
+                DrawLine(center + new Vector2(-radius * 0.22f, radius * 0.26f), center + new Vector2(radius * 0.22f, radius * 0.26f), iconColor, 4);
+                break;
+            default:
+                DrawCircle(center, radius, fill);
+                DrawCircleOutline(center, radius, outline, 3);
+                DrawCircleOutline(center, radius * 0.42f, iconColor, 3);
+                break;
         }
-        else if (node.Owner == NodeOwner.Enemy)
-        {
-            DrawCenteredText("CORRUPT", bounds.X + 4, bounds.Bottom - 20, bounds.Width - 8, 14, 10, TextColor);
-        }
+    }
+
+    private void DrawIntegrityBar(NodeState node, Vector2 center, float radius)
+    {
+        var width = (int)(radius * 1.42f);
+        var x = (int)(center.X - width / 2f);
+        var y = (int)(center.Y + radius * 0.66f);
+        var integrityRatio = Math.Clamp(node.Integrity / 12f, 0f, 1f);
+        var threatRatio = Math.Clamp(node.Threat / 12f, 0f, 1f);
+
+        Fill(new XnaRectangle(x, y, width, 5), new XnaColor(22, 30, 39, 220));
+        Fill(new XnaRectangle(x, y, (int)(width * integrityRatio), 5), ValidMoveColor);
+        Fill(new XnaRectangle(x, y + 7, width, 4), new XnaColor(22, 30, 39, 220));
+        Fill(new XnaRectangle(x, y + 7, (int)(width * threatRatio), 4), WarningColor);
+    }
+
+    private void DrawCorruptionOverlay(Vector2 center, float radius, float pulse)
+    {
+        var color = new XnaColor((byte)255, (byte)116, (byte)128, (byte)(170 + pulse * 55));
+        DrawLine(center + new Vector2(-radius * 0.42f, -radius * 0.42f), center + new Vector2(radius * 0.42f, radius * 0.42f), color, 5);
+        DrawLine(center + new Vector2(radius * 0.42f, -radius * 0.42f), center + new Vector2(-radius * 0.42f, radius * 0.42f), color, 5);
     }
 
     private void DrawHud()
@@ -246,53 +402,65 @@ public class Game1 : Game
 
         var x = hud.X + TextPadding;
         var y = hud.Y + TextPadding;
-        DrawText("Mission HUD", x, y, 24, TextColor);
-        y += 38;
-        DrawText($"Turn {_game.TurnNumber}   Energy {_game.PlayerEnergy}", x, y, 17, TextColor);
-        y += 24;
+        DrawText("Uplink", x, y, 22, TextColor);
+        DrawText($"Turn {_game.TurnNumber}", hud.Right - 84, y + 4, 15, MutedTextColor);
+        y += 36;
+
+        DrawResourceStrip(x, y, hud.Width - TextPadding * 2);
+        y += 54;
         DrawObjectiveProgress(x, y, hud.Width - TextPadding * 2);
-        y += 32;
-        DrawText($"Corruption pressure {_game.CorruptionPressure}", x, y, 16, WarningColor);
-        y += 34;
+        y += 45;
 
         _buttons.Clear();
-        y = DrawActionButton(x, y, "1", "Claim", PlayerActionMode.Claim);
-        y = DrawActionButton(x, y + 8, "2", "Reinforce", PlayerActionMode.Reinforce);
-        y = DrawActionButton(x, y + 8, "3", "Weaken", PlayerActionMode.Weaken);
-        y = DrawCommandButton(x, y + 14, "Space", "End Turn", ButtonAction.EndTurn);
-        y = DrawCommandButton(x, y + 8, "R", "Restart", ButtonAction.Restart);
-        y += 22;
+        y = DrawActionButton(x, y, "1", "Claim", PlayerActionMode.Claim, ValidMoveColor);
+        y = DrawActionButton(x, y + 7, "2", "Reinforce", PlayerActionMode.Reinforce, AccentColor);
+        y = DrawActionButton(x, y + 7, "3", "Weaken", PlayerActionMode.Weaken, WarningColor);
+        y = DrawCommandButton(x, y + 12, "Space", "End", ButtonAction.EndTurn);
+        y = DrawCommandButton(x, y + 7, "R", "Reset", ButtonAction.Restart);
+        y += 18;
 
-        DrawText("Mission Feed", x, y, 18, TextColor);
-        y += 26;
-        DrawText(_status, x, y, 15, TextColor, hud.Width - TextPadding * 2);
-        y += EstimateWrappedHeight(_status, hud.Width - TextPadding * 2, 15) + 12;
+        DrawText("Signal", x, y, 16, TextColor);
+        y += 24;
+        DrawText(_status, x, y, 13, TextColor, hud.Width - TextPadding * 2);
+        y += EstimateWrappedHeight(_status, hud.Width - TextPadding * 2, 13) + 10;
 
         if (!string.IsNullOrWhiteSpace(_invalidReason))
         {
-            DrawText("Invalid move", x, y, 16, WarningColor);
-            y += 23;
-            DrawText(_invalidReason, x, y, 14, WarningColor, hud.Width - TextPadding * 2);
-            y += EstimateWrappedHeight(_invalidReason, hud.Width - TextPadding * 2, 14) + 12;
+            DrawText(_invalidReason, x, y, 13, WarningColor, hud.Width - TextPadding * 2);
+            y += EstimateWrappedHeight(_invalidReason, hud.Width - TextPadding * 2, 13) + 10;
         }
 
-        DrawText("Action Log", x, y, 18, TextColor);
-        y += 26;
+        DrawText("Trace", x, y, 16, TextColor);
+        y += 23;
         foreach (var entry in _actionLog.TakeLast(MaxLogEntries))
         {
-            DrawText("- " + entry, x, y, 13, MutedTextColor, hud.Width - TextPadding * 2);
-            y += EstimateWrappedHeight("- " + entry, hud.Width - TextPadding * 2, 13) + 6;
+            DrawText(entry, x, y, 12, MutedTextColor, hud.Width - TextPadding * 2);
+            y += EstimateWrappedHeight(entry, hud.Width - TextPadding * 2, 12) + 5;
         }
     }
 
-    private int DrawActionButton(int x, int y, string shortcut, string label, PlayerActionMode action)
+    private void DrawResourceStrip(int x, int y, int width)
+    {
+        DrawText("Energy", x, y, 14, MutedTextColor);
+        DrawText(_game.PlayerEnergy.ToString(), x + 72, y - 4, 22, AccentColor);
+        var bar = new XnaRectangle(x, y + 28, width, 10);
+        Fill(bar, new XnaColor(48, 58, 72));
+        Fill(new XnaRectangle(bar.X, bar.Y, (int)(bar.Width * Math.Clamp(_game.PlayerEnergy / 10f, 0f, 1f)), bar.Height), AccentColor);
+        DrawRectangle(bar, PanelBorderColor, 1);
+
+        DrawText("Corruption", x + 140, y, 14, MutedTextColor);
+        DrawText(_game.CorruptionPressure.ToString(), x + 236, y - 4, 22, WarningColor);
+    }
+
+    private int DrawActionButton(int x, int y, string shortcut, string label, PlayerActionMode action, XnaColor iconColor)
     {
         var selected = _selectedAction == action;
         var bounds = new XnaRectangle(x, y, HudWidth - TextPadding * 2, ButtonHeight);
-        Fill(bounds, selected ? new XnaColor(44, 96, 133) : new XnaColor(44, 52, 66));
-        DrawRectangle(bounds, selected ? AccentColor : PanelBorderColor, selected ? 3 : 2);
-        DrawText(shortcut, bounds.X + 12, bounds.Y + 10, 15, AccentColor);
-        DrawText(label, bounds.X + 58, bounds.Y + 9, 17, TextColor);
+        Fill(bounds, selected ? new XnaColor(35, 72, 91) : new XnaColor(34, 41, 53));
+        DrawRectangle(bounds, selected ? iconColor : PanelBorderColor, selected ? 3 : 2);
+        DrawCircle(new Vector2(bounds.X + 23, bounds.Y + 19), 9, iconColor);
+        DrawText(shortcut, bounds.X + 44, bounds.Y + 10, 13, MutedTextColor);
+        DrawText(label, bounds.X + 78, bounds.Y + 8, 16, TextColor);
         _buttons.Add(new ButtonDefinition(bounds, ButtonAction.SelectAction, action));
         return y + ButtonHeight;
     }
@@ -300,10 +468,10 @@ public class Game1 : Game
     private int DrawCommandButton(int x, int y, string shortcut, string label, ButtonAction action)
     {
         var bounds = new XnaRectangle(x, y, HudWidth - TextPadding * 2, ButtonHeight);
-        Fill(bounds, new XnaColor(48, 55, 68));
+        Fill(bounds, new XnaColor(35, 41, 52));
         DrawRectangle(bounds, PanelBorderColor, 2);
-        DrawText(shortcut, bounds.X + 12, bounds.Y + 10, 14, AccentColor);
-        DrawText(label, bounds.X + 82, bounds.Y + 9, 17, TextColor);
+        DrawText(shortcut, bounds.X + 14, bounds.Y + 10, 12, AccentColor);
+        DrawText(label, bounds.X + 82, bounds.Y + 8, 16, TextColor);
         _buttons.Add(new ButtonDefinition(bounds, action, null));
         return y + ButtonHeight;
     }
@@ -316,25 +484,24 @@ public class Game1 : Game
         }
 
         var mouse = Mouse.GetState().Position;
-        var width = 280;
+        var width = 300;
         var node = _hoveredNode;
         var preview = GetActionPreview(node);
-        var height = node.IsUnstable || !string.IsNullOrWhiteSpace(node.DangerReason) ? 188 : 170;
-        var x = Math.Min(mouse.X + 18, WindowWidth - width - 12);
-        var y = Math.Min(mouse.Y + 18, WindowHeight - height - 12);
-        var bounds = new XnaRectangle(x, y, width, height);
-        Fill(bounds, new XnaColor(21, 26, 35));
+        var height = node.IsUnstable || !string.IsNullOrWhiteSpace(node.DangerReason) ? 188 : 166;
+        var x = Math.Min(mouse.X + 18, WindowWidth - HudWidth - width - 42);
+        var y = Math.Min(mouse.Y + 18, WindowHeight - height - 18);
+        var bounds = new XnaRectangle(Math.Max(18, x), Math.Max(18, y), width, height);
+        Fill(bounds, new XnaColor(16, 22, 31, 242));
         DrawRectangle(bounds, preview.IsValid ? ValidMoveColor : AccentColor, 2);
 
-        DrawText($"{GetOwnerIcon(node.Owner)} {GetTypeLabel(node.Type)} {node.Id}", x + 12, y + 10, 17, TextColor);
-        DrawText($"Owner: {GetOwnerLabel(node.Owner)}", x + 12, y + 36, 14, MutedTextColor);
-        DrawText($"Integrity {node.Integrity}   Threat {node.Threat}   Cost {preview.Cost}", x + 12, y + 56, 14, TextColor);
-        DrawText(preview.IsValid ? "Action: " + preview.SuccessText : "Blocked: " + preview.Reason, x + 12, y + 78, 13, preview.IsValid ? ValidMoveColor : WarningColor, width - 24);
-        DrawText($"Selected: {_selectedAction}", x + 12, y + 118, 13, MutedTextColor);
+        DrawText($"{GetOwnerLabel(node.Owner)} {GetTypeLabel(node)} {node.Id}", bounds.X + 12, bounds.Y + 10, 16, TextColor);
+        DrawText($"Integrity {node.Integrity}   Threat {node.Threat}   Cost {preview.Cost}", bounds.X + 12, bounds.Y + 38, 13, MutedTextColor);
+        DrawText(preview.IsValid ? preview.SuccessText : preview.Reason, bounds.X + 12, bounds.Y + 62, 13, preview.IsValid ? ValidMoveColor : WarningColor, width - 24);
+        DrawText($"Selected: {_selectedAction}", bounds.X + 12, bounds.Y + 108, 12, MutedTextColor);
 
         if (node.IsUnstable || !string.IsNullOrWhiteSpace(node.DangerReason))
         {
-            DrawText($"Danger: {node.DangerReason}", x + 12, y + 140, 13, node.IsUnstable ? WarningColor : MutedTextColor, width - 24);
+            DrawText(node.DangerReason, bounds.X + 12, bounds.Y + 132, 12, node.IsUnstable ? WarningColor : MutedTextColor, width - 24);
         }
     }
 
@@ -346,12 +513,12 @@ public class Game1 : Game
         }
 
         var isWin = _game.Result == GameResult.PlayerWin;
-        var boardBounds = GetBoardBounds();
-        var bounds = new XnaRectangle(boardBounds.X + 28, boardBounds.Y + 16, boardBounds.Width - 56, 88);
-        Fill(bounds, isWin ? new XnaColor(24, 86, 55, 232) : new XnaColor(97, 31, 40, 232));
+        var viewport = GetBoardViewport();
+        var bounds = new XnaRectangle(viewport.X + viewport.Width / 2 - 220, viewport.Y + 28, 440, 86);
+        Fill(bounds, isWin ? new XnaColor(20, 86, 54, 235) : new XnaColor(98, 28, 42, 235));
         DrawRectangle(bounds, isWin ? WinColor : LossColor, 4);
-        DrawCenteredText(isWin ? "MISSION COMPLETE" : "MISSION FAILED", bounds.X, bounds.Y + 14, bounds.Width, 30, 25, TextColor);
-        DrawCenteredText("R / Restart runs the mission again.", bounds.X, bounds.Y + 53, bounds.Width, 20, 15, TextColor);
+        DrawCenteredText(isWin ? "MISSION COMPLETE" : "MISSION FAILED", bounds.X, bounds.Y + 16, bounds.Width, 28, 24, TextColor);
+        DrawCenteredText("R resets the network.", bounds.X, bounds.Y + 54, bounds.Width, 18, 14, TextColor);
     }
 
     private void HandleClick(XnaPoint mousePosition)
@@ -389,12 +556,59 @@ public class Game1 : Game
         ApplyResult(_game.ExecutePlayerAction(_selectedAction, node.Id));
     }
 
+    private void HandleCameraInput(MouseState mouse, KeyboardState keyboard)
+    {
+        var viewport = GetBoardViewport();
+        var mouseInsideNetwork = viewport.Contains(mouse.Position);
+
+        if (mouseInsideNetwork)
+        {
+            var wheelDelta = mouse.ScrollWheelValue - _previousMouse.ScrollWheelValue;
+            if (wheelDelta != 0)
+            {
+                _targetZoom = MathHelper.Clamp(_targetZoom + wheelDelta / 1200f, 0.62f, 1.62f);
+            }
+        }
+
+        if ((mouse.RightButton == ButtonState.Pressed || mouse.MiddleButton == ButtonState.Pressed) && mouseInsideNetwork)
+        {
+            var delta = mouse.Position.ToVector2() - _previousMouse.Position.ToVector2();
+            _targetCameraCenter -= delta / Math.Max(0.1f, _zoom);
+        }
+
+        var keyboardPan = Vector2.Zero;
+        if (keyboard.IsKeyDown(Keys.Left) || keyboard.IsKeyDown(Keys.A))
+        {
+            keyboardPan.X -= 1f;
+        }
+
+        if (keyboard.IsKeyDown(Keys.Right) || keyboard.IsKeyDown(Keys.D))
+        {
+            keyboardPan.X += 1f;
+        }
+
+        if (keyboard.IsKeyDown(Keys.Up) || keyboard.IsKeyDown(Keys.W))
+        {
+            keyboardPan.Y -= 1f;
+        }
+
+        if (keyboard.IsKeyDown(Keys.Down) || keyboard.IsKeyDown(Keys.S))
+        {
+            keyboardPan.Y += 1f;
+        }
+
+        if (keyboardPan != Vector2.Zero)
+        {
+            _targetCameraCenter += Vector2.Normalize(keyboardPan) * 10f / Math.Max(0.1f, _zoom);
+        }
+    }
+
     private void SelectAction(PlayerActionMode action)
     {
         _selectedAction = action;
         _invalidReason = string.Empty;
-        _status = $"Selected {action}.";
-        Log($"{action}: {CountValidTargetsForSelectedAction()} target(s) available.");
+        _status = $"{action}: {CountValidTargetsForSelectedAction()} target(s) available.";
+        Log(_status);
     }
 
     private void RestartMission()
@@ -402,10 +616,11 @@ public class Game1 : Game
         _game = NetworkGame.CreateVerticalSliceMission();
         _selectedAction = PlayerActionMode.Claim;
         _invalidReason = string.Empty;
-        _status = "Mission restarted. Reach and hold the Objective.";
+        _status = "Mission reset. Expand toward the uplink.";
         _selectedNodeId = null;
         _actionLog.Clear();
-        Log("Mission restarted.");
+        RecenterCamera(immediate: false);
+        Log("Network reset.");
     }
 
     private void ApplyResult(GameActionResult result)
@@ -449,7 +664,7 @@ public class Game1 : Game
             return new ActionPreview(false, "Outside player claim range.", cost.ToString(), "Claim node", cost);
         }
 
-        return new ActionPreview(true, string.Empty, cost.ToString(), $"Claim {node.Id}; corruption then resolves.", cost);
+        return new ActionPreview(true, string.Empty, cost.ToString(), $"Claim {node.Id}; corruption resolves.", cost);
     }
 
     private ActionPreview PreviewReinforce(NodeState node)
@@ -501,16 +716,17 @@ public class Game1 : Game
 
     private NodeState GetNodeAt(XnaPoint mousePosition)
     {
-        foreach (var node in _game.Board.Nodes)
+        if (!GetBoardViewport().Contains(mousePosition))
         {
-            var center = GetNodeCenter(node.Id);
-            if (Vector2.Distance(center, mousePosition.ToVector2()) <= NodeSize / 2f + 8)
-            {
-                return node;
-            }
+            return null;
         }
 
-        return null;
+        return _game.Board.Nodes
+            .Select(node => new { Node = node, Distance = Vector2.Distance(WorldToScreen(GetNodeWorldPosition(node.Id)), mousePosition.ToVector2()) })
+            .Where(candidate => candidate.Distance <= NodeWorldRadius * _zoom + 16f)
+            .OrderBy(candidate => candidate.Distance)
+            .Select(candidate => candidate.Node)
+            .FirstOrDefault();
     }
 
     private bool WasPressed(KeyboardState keyboard, Keys key)
@@ -527,14 +743,31 @@ public class Game1 : Game
         }
     }
 
-    private XnaRectangle GetBoardBounds()
+    private void RecenterCamera(bool immediate)
     {
-        var boardWidth = (_game.Board.Width - 1) * CellSize + NodeSize;
-        var boardHeight = (_game.Board.Height - 1) * CellSize + NodeSize;
-        var availableWidth = WindowWidth - HudWidth - 60;
-        var left = (availableWidth - boardWidth) / 2 + NodeSize / 2;
-        var top = (WindowHeight - boardHeight) / 2 + NodeSize / 2 + 28;
-        return new XnaRectangle(left - NodeSize / 2, top - NodeSize / 2, boardWidth, boardHeight);
+        var positions = _game.Board.Nodes.Select(node => GetNodeWorldPosition(node.Id)).ToArray();
+        var minX = positions.Min(position => position.X);
+        var maxX = positions.Max(position => position.X);
+        var minY = positions.Min(position => position.Y);
+        var maxY = positions.Max(position => position.Y);
+        var viewport = GetBoardViewport();
+        var networkWidth = Math.Max(1f, maxX - minX);
+        var networkHeight = Math.Max(1f, maxY - minY);
+        var fitZoom = Math.Min(viewport.Width / (networkWidth + CameraMargin * 2f), viewport.Height / (networkHeight + CameraMargin * 2f));
+
+        _targetCameraCenter = new Vector2((minX + maxX) / 2f, (minY + maxY) / 2f);
+        _targetZoom = MathHelper.Clamp(fitZoom, 0.65f, 1.28f);
+
+        if (immediate)
+        {
+            _cameraCenter = _targetCameraCenter;
+            _zoom = _targetZoom;
+        }
+    }
+
+    private XnaRectangle GetBoardViewport()
+    {
+        return new XnaRectangle(22, 22, WindowWidth - HudWidth - 58, WindowHeight - 44);
     }
 
     private XnaRectangle GetHudBounds()
@@ -542,30 +775,41 @@ public class Game1 : Game
         return new XnaRectangle(WindowWidth - HudWidth - 22, 22, HudWidth, WindowHeight - 44);
     }
 
-    private Vector2 GetNodeCenter(NodeId nodeId)
+    private Vector2 GetNodeWorldPosition(NodeId nodeId)
     {
-        var bounds = GetBoardBounds();
-        return new Vector2(bounds.X + NodeSize / 2 + nodeId.X * CellSize, bounds.Y + NodeSize / 2 + nodeId.Y * CellSize);
+        if (VerticalSliceTopology.TryGetValue(nodeId, out var position))
+        {
+            return position;
+        }
+
+        var xOffset = nodeId.Y % 2 == 0 ? 0f : 58f;
+        return new Vector2(nodeId.X * 170f + xOffset, nodeId.Y * 148f);
     }
 
-    private string GetTypeBadge(NodeState node)
+    private Vector2 WorldToScreen(Vector2 world)
+    {
+        var viewport = GetBoardViewport();
+        return new Vector2(viewport.X + viewport.Width / 2f, viewport.Y + viewport.Height / 2f) + (world - _cameraCenter) * _zoom;
+    }
+
+    private string GetTypeLabel(NodeState node)
     {
         if (node.Id == _game.PlayerCore)
         {
-            return "CORE";
+            return "Core";
         }
 
-        if (_game.ObjectiveNode == node.Id)
+        if (node.Id == _game.ObjectiveNode)
         {
-            return "OBJ";
+            return "Objective";
         }
 
         return node.Type switch
         {
-            NodeType.Resource => "RES",
-            NodeType.Relay => "RLY",
-            NodeType.Firewall => "FW",
-            _ => "STD"
+            NodeType.Resource => "Resource",
+            NodeType.Relay => "Relay",
+            NodeType.Firewall => "Firewall",
+            _ => "Node"
         };
     }
 
@@ -579,84 +823,85 @@ public class Game1 : Game
         };
     }
 
-    private static string GetTypeLabel(NodeType type)
-    {
-        return type switch
-        {
-            NodeType.Resource => "Resource",
-            NodeType.Relay => "Relay",
-            NodeType.Firewall => "Firewall",
-            _ => "Node"
-        };
-    }
-
-    private static string GetOwnerIcon(NodeOwner owner)
-    {
-        return owner switch
-        {
-            NodeOwner.Player => "P",
-            NodeOwner.Enemy => "X",
-            _ => "-"
-        };
-    }
-
     private static XnaColor GetOwnerColor(NodeOwner owner)
     {
         return owner switch
         {
-            NodeOwner.Player => new XnaColor(35, 126, 88),
-            NodeOwner.Enemy => new XnaColor(137, 42, 54),
-            _ => new XnaColor(64, 72, 86)
+            NodeOwner.Player => new XnaColor(35, 145, 101),
+            NodeOwner.Enemy => new XnaColor(153, 38, 55),
+            _ => NeutralColor
         };
     }
 
-    private static XnaColor GetTypeColor(NodeType type)
+    private XnaColor GetTypeColor(NodeState node, bool isObjective)
     {
-        return type switch
+        if (node.Id == _game.PlayerCore)
+        {
+            return AccentColor;
+        }
+
+        if (isObjective)
+        {
+            return ObjectiveColor;
+        }
+
+        return node.Type switch
         {
             NodeType.Resource => new XnaColor(232, 190, 66),
-            NodeType.Relay => new XnaColor(71, 146, 226),
-            NodeType.Firewall => new XnaColor(178, 112, 229),
-            _ => XnaColor.Transparent
+            NodeType.Relay => new XnaColor(66, 170, 230),
+            NodeType.Firewall => new XnaColor(186, 117, 230),
+            _ => new XnaColor(150, 165, 184)
         };
     }
 
-    private void DrawLegend(int x, int y, int width)
+    private static XnaColor GetConnectionColor(NodeState start, NodeState end, bool active)
     {
-        var legendBounds = new XnaRectangle(x, y, width, 54);
-        Fill(legendBounds, new XnaColor(20, 25, 34));
-        DrawRectangle(legendBounds, new XnaColor(55, 65, 82), 2);
-        DrawText("Legend", x + 12, y + 15, 14, TextColor);
+        if (!active)
+        {
+            return new XnaColor(47, 55, 66, 130);
+        }
 
-        var itemX = x + 92;
-        DrawLegendItem(itemX, y + 13, GetOwnerColor(NodeOwner.Player), "P Player");
-        itemX += 98;
-        DrawLegendItem(itemX, y + 13, GetOwnerColor(NodeOwner.Enemy), "X Corrupt");
-        itemX += 120;
-        DrawLegendItem(itemX, y + 13, GetOwnerColor(NodeOwner.Neutral), "- Neutral");
-        itemX += 112;
-        DrawLegendItem(itemX, y + 13, ObjectiveColor, "OBJ");
-        itemX += 74;
-        DrawLegendItem(itemX, y + 13, WarningColor, "Danger");
+        if (start.Owner == NodeOwner.Enemy || end.Owner == NodeOwner.Enemy)
+        {
+            return start.Owner == NodeOwner.Enemy && end.Owner == NodeOwner.Enemy
+                ? new XnaColor(143, 41, 59, 210)
+                : new XnaColor(204, 100, 71, 220);
+        }
+
+        if (start.Owner == NodeOwner.Player && end.Owner == NodeOwner.Player)
+        {
+            return new XnaColor(62, 188, 139, 230);
+        }
+
+        return new XnaColor(70, 116, 143, 190);
     }
 
-    private void DrawLegendItem(int x, int y, XnaColor color, string label)
+    private static XnaColor GetFlowColor(NodeState start, NodeState end)
     {
-        Fill(new XnaRectangle(x, y + 3, 14, 14), color);
-        DrawRectangle(new XnaRectangle(x, y + 3, 14, 14), TextColor, 1);
-        DrawText(label, x + 20, y, 12, MutedTextColor);
+        if (start.Owner == NodeOwner.Enemy || end.Owner == NodeOwner.Enemy)
+        {
+            return new XnaColor(255, 110, 126);
+        }
+
+        if (start.Owner == NodeOwner.Player || end.Owner == NodeOwner.Player)
+        {
+            return new XnaColor(104, 229, 184);
+        }
+
+        return new XnaColor(108, 196, 238);
     }
 
     private void DrawObjectiveProgress(int x, int y, int width)
     {
-        DrawText($"Objective {_game.ObjectiveHoldTurns}/{_game.RequiredObjectiveHoldTurns}", x, y, 17, ObjectiveColor);
-        var bar = new XnaRectangle(x + 152, y + 7, width - 152, 12);
-        Fill(bar, new XnaColor(55, 62, 76));
+        DrawText("Objective", x, y, 14, ObjectiveColor);
+        var bar = new XnaRectangle(x, y + 24, width, 12);
+        Fill(bar, new XnaColor(48, 58, 72));
         var progress = _game.RequiredObjectiveHoldTurns == 0
             ? 0f
             : Math.Clamp(_game.ObjectiveHoldTurns / (float)_game.RequiredObjectiveHoldTurns, 0f, 1f);
         Fill(new XnaRectangle(bar.X, bar.Y, (int)(bar.Width * progress), bar.Height), ObjectiveColor);
         DrawRectangle(bar, PanelBorderColor, 1);
+        DrawText($"{_game.ObjectiveHoldTurns}/{_game.RequiredObjectiveHoldTurns}", x + width - 42, y - 2, 16, TextColor);
     }
 
     private string FormatStatusMessage(GameActionResult result)
@@ -674,23 +919,23 @@ public class Game1 : Game
         }
         else if (result.CorruptionFocusTarget.HasValue)
         {
-            parts.Add($"Corruption pressed {result.CorruptionFocusTarget.Value}, but it held.");
+            parts.Add($"Corruption pressed {result.CorruptionFocusTarget.Value}; node held.");
         }
         else
         {
-            parts.Add("Corruption built pressure without spreading.");
+            parts.Add("Corruption pressure rose.");
         }
 
         if (result.CollapsedNodes is { Count: > 0 })
         {
-            parts.Add($"Collapse: {string.Join(", ", result.CollapsedNodes)} fell.");
+            parts.Add($"Collapse: {string.Join(", ", result.CollapsedNodes)}.");
         }
 
-        parts.Add($"Objective hold {_game.ObjectiveHoldTurns}/{_game.RequiredObjectiveHoldTurns}.");
+        parts.Add($"Objective {_game.ObjectiveHoldTurns}/{_game.RequiredObjectiveHoldTurns}.");
 
         if (result.EnergyGenerated > 0)
         {
-            parts.Add($"+{result.EnergyGenerated} energy from Resources.");
+            parts.Add($"+{result.EnergyGenerated} energy.");
         }
 
         if (result.Result == GameResult.PlayerWin)
@@ -736,10 +981,9 @@ public class Game1 : Game
         return firstSentence;
     }
 
-    private int GetPulseAmount(int baseAmount, int range)
+    private float GetPulse(float speed, float offset)
     {
-        var wave = (MathF.Sin((float)_totalSeconds * 3.8f) + 1f) / 2f;
-        return baseAmount + (int)(wave * range);
+        return (MathF.Sin((float)_totalSeconds * speed + offset) + 1f) / 2f;
     }
 
     private void DrawCenteredText(string text, int x, int y, int width, int height, int size, XnaColor color)
@@ -759,7 +1003,7 @@ public class Game1 : Game
         }
 
         var lineY = y;
-        foreach (var line in WrapText(text, maxWidth, size))
+        foreach (var line in WrapText(text, maxWidth, size, color))
         {
             var texture = GetTextTexture(line, size, color);
             _spriteBatch.Draw(texture, new Vector2(x, lineY), XnaColor.White);
@@ -808,7 +1052,7 @@ public class Game1 : Game
         return texture;
     }
 
-    private IEnumerable<string> WrapText(string text, int maxWidth, int size)
+    private IEnumerable<string> WrapText(string text, int maxWidth, int size, XnaColor color)
     {
         var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length == 0)
@@ -820,7 +1064,7 @@ public class Game1 : Game
         for (var i = 1; i < words.Length; i++)
         {
             var candidate = line + " " + words[i];
-            if (GetTextTexture(candidate, size, TextColor).Width <= maxWidth)
+            if (GetTextTexture(candidate, size, color).Width <= maxWidth)
             {
                 line = candidate;
             }
@@ -836,7 +1080,7 @@ public class Game1 : Game
 
     private int EstimateWrappedHeight(string text, int maxWidth, int size)
     {
-        return WrapText(text, maxWidth, size).Sum(line => GetTextTexture(line, size, TextColor).Height + 3);
+        return WrapText(text, maxWidth, size, TextColor).Sum(line => GetTextTexture(line, size, TextColor).Height + 3);
     }
 
     private void Fill(XnaRectangle rectangle, XnaColor color)
@@ -859,9 +1103,93 @@ public class Game1 : Game
         _spriteBatch.Draw(_pixel, new XnaRectangle((int)start.X, (int)start.Y, (int)edge.Length(), thickness), null, color, angle, new Vector2(0, 0.5f), SpriteEffects.None, 0);
     }
 
-    private static XnaRectangle Grow(XnaRectangle rectangle, int amount)
+    private void DrawCircle(Vector2 center, float radius, XnaColor color)
     {
-        return new XnaRectangle(rectangle.X - amount, rectangle.Y - amount, rectangle.Width + amount * 2, rectangle.Height + amount * 2);
+        var top = (int)MathF.Floor(center.Y - radius);
+        var bottom = (int)MathF.Ceiling(center.Y + radius);
+        for (var y = top; y <= bottom; y += 2)
+        {
+            var dy = y - center.Y;
+            var halfWidth = MathF.Sqrt(MathF.Max(0f, radius * radius - dy * dy));
+            Fill(new XnaRectangle((int)(center.X - halfWidth), y, (int)(halfWidth * 2f), 2), color);
+        }
+    }
+
+    private void DrawCircleOutline(Vector2 center, float radius, XnaColor color, int thickness)
+    {
+        var previous = center + new Vector2(radius, 0);
+        for (var i = 1; i <= 48; i++)
+        {
+            var angle = MathHelper.TwoPi * i / 48f;
+            var next = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+            DrawLine(previous, next, color, thickness);
+            previous = next;
+        }
+    }
+
+    private void DrawDiamond(Vector2 center, float radius, XnaColor fill, XnaColor outline)
+    {
+        var points = new[]
+        {
+            center + new Vector2(0, -radius),
+            center + new Vector2(radius, 0),
+            center + new Vector2(0, radius),
+            center + new Vector2(-radius, 0)
+        };
+        FillPolygonApprox(points, fill);
+        DrawPolygonOutline(points, outline, 4);
+    }
+
+    private void DrawHexagon(Vector2 center, float radius, XnaColor fill, XnaColor outline)
+    {
+        var points = Enumerable.Range(0, 6)
+            .Select(i =>
+            {
+                var angle = MathHelper.TwoPi * i / 6f + MathHelper.PiOver2;
+                return center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+            })
+            .ToArray();
+        FillPolygonApprox(points, fill);
+        DrawPolygonOutline(points, outline, 4);
+    }
+
+    private void DrawShield(Vector2 center, float radius, XnaColor fill, XnaColor outline)
+    {
+        var points = new[]
+        {
+            center + new Vector2(-radius * 0.74f, -radius * 0.7f),
+            center + new Vector2(radius * 0.74f, -radius * 0.7f),
+            center + new Vector2(radius * 0.62f, radius * 0.18f),
+            center + new Vector2(0, radius),
+            center + new Vector2(-radius * 0.62f, radius * 0.18f)
+        };
+        FillPolygonApprox(points, fill);
+        DrawPolygonOutline(points, outline, 4);
+    }
+
+    private void FillPolygonApprox(IReadOnlyList<Vector2> points, XnaColor color)
+    {
+        var center = points.Aggregate(Vector2.Zero, (sum, point) => sum + point) / points.Count;
+        var maxRadius = points.Max(point => Vector2.Distance(point, center));
+        DrawCircle(center, maxRadius * 0.82f, color);
+    }
+
+    private void DrawPolygonOutline(IReadOnlyList<Vector2> points, XnaColor color, int thickness)
+    {
+        for (var i = 0; i < points.Count; i++)
+        {
+            DrawLine(points[i], points[(i + 1) % points.Count], color, thickness);
+        }
+    }
+
+    private static XnaColor Blend(XnaColor first, XnaColor second, float amount)
+    {
+        amount = Math.Clamp(amount, 0f, 1f);
+        return new XnaColor(
+            (byte)(first.R + (second.R - first.R) * amount),
+            (byte)(first.G + (second.G - first.G) * amount),
+            (byte)(first.B + (second.B - first.B) * amount),
+            (byte)(first.A + (second.A - first.A) * amount));
     }
 
     private readonly record struct TextKey(string Text, int Size, uint PackedColor);
