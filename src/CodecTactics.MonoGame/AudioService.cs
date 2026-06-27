@@ -46,6 +46,19 @@ public sealed class AudioService : IDisposable
         }
     }
 
+    public void SetAmbientIntensity(float intensity)
+    {
+        if (_ambient is null)
+        {
+            return;
+        }
+
+        intensity = Math.Clamp(intensity, 0f, 1f);
+        _ambient.Volume = 0.18f + intensity * 0.18f;
+        _ambient.Pitch = -0.08f + intensity * 0.14f;
+        _ambient.Pan = MathF.Sin(Environment.TickCount / 4200f) * 0.08f;
+    }
+
     public void Dispose()
     {
         if (_disposed)

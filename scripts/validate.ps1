@@ -42,7 +42,7 @@ if ($missing.Count -gt 0) {
     Write-Error "Missing required path(s): $($missing -join ', ')"
 }
 
-Write-Host "Godot validation is retired; legacy Godot files are intentionally not part of the active workflow."
+Write-Host "Retired frontend validation is not part of the active workflow."
 
 if (-not $SkipDotNet) {
     dotnet format --version *> $null

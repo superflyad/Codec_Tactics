@@ -23,7 +23,7 @@ Use this command from the repository root:
 .\scripts\validate.ps1
 ```
 
-Godot is retired from the active workflow. Validation should not require or invoke Godot; legacy Godot files may remain in the repository for reference until they are safely removed.
+The active workflow is the .NET solution and MonoGame frontend. Validation should not require or invoke retired frontend tooling.
 
 ## Review Checklist
 

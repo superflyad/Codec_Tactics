@@ -13,7 +13,7 @@ Codec_Tactics is intentionally small at this stage. Prefer focused changes that 
 
 ## Testing
 
-Tests should be deterministic and runnable from a clean checkout. Prefer pure C# tests for domain logic. Godot-specific behavior should be isolated so future editor or scene tests can be added without making the whole suite fragile.
+Tests should be deterministic and runnable from a clean checkout. Prefer pure C# tests for domain logic. frontend-specific behavior should be isolated so future editor or scene tests can be added without making the whole suite fragile.
 
 ## Documentation
 

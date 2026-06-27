@@ -35,13 +35,13 @@ Current limitations:
 - No layered board, cube visualization, advanced AI, save/load, resources, or polish.
 - Win/loss conditions are placeholders only.
 
-## Milestone 1.5: Visible Godot Prototype
+## Milestone 1.5: Retired Visible Prototype
 
-Connect the tested 2D network core to the first launchable Godot scene.
+Connect the tested 2D network core to the first launchable frontend scene.
 
 Exit criteria:
 
-- Godot has a configured main scene.
+- The retired frontend had a configured main scene.
 - The scene renders current board nodes and active connections.
 - Neutral, player, enemy/corruption, and reinforced nodes are visually distinguishable.
 - Valid adjacent neutral clicks call core claim behavior.
@@ -53,7 +53,7 @@ Current status:
 
 - End Turn was a placeholder pass action in Milestone 1.5; Milestone 2 replaces it with a real core end-turn action.
 - Rendering is temporary debug-style UI.
-- This Godot frontend is retired from the active workflow and retained only as legacy reference.
+- This prototype is retired and no longer part of the active repository.
 
 ## Milestone 2: Strategic 2D Node Decisions
 
@@ -119,7 +119,7 @@ Exit criteria:
 - Node ownership, type, objective, corruption, instability, and selection state are readable through silhouette, color, glow, outline, and compact indicators before text.
 - Camera zoom, pan, and recenter behavior keeps the network comfortable to inspect.
 - The HUD remains concise so the board is the primary visual focus.
-- Core gameplay rules, layers, cube visualization, balance, and Godot legacy files remain unchanged.
+- Core gameplay rules, layers, cube visualization, balance, and retired frontend scope remain unchanged.
 
 ## Future Visualization: Cube
 
@@ -141,7 +141,7 @@ Exit criteria:
 - The network has idle motion, directional packet flow, relay amplification, corruption pulses, and readable event pulses.
 - Successful and invalid actions produce immediate visual and audio feedback.
 - Audio is routed through a centralized presentation service and backed by committed synthesized WAV assets.
-- Core gameplay rules, balance, mission shape, layers, cube visualization, and Godot legacy files remain unchanged.
+- Core gameplay rules, balance, mission shape, layers, cube visualization, and retired frontend scope remain unchanged.
 - Validation covers existing deterministic rule behavior and the MonoGame project builds cleanly.
 
 ## Milestone 6: Procedural Mission Generation
@@ -158,7 +158,7 @@ Exit criteria:
 
 Status: implemented as the procedural mission foundation.
 
-## Milestone 7: Tactical AI and Enemy Personalities
+## Tactical AI and Enemy Personalities
 
 Improve opponent decision quality without adding player mechanics or changing combat rules.
 
@@ -177,3 +177,19 @@ Current limitations:
 - Personalities are first-pass balance values.
 - Enemy actions still use the existing corruption pressure, spread, focus, and collapse rules.
 - AI has no hidden information model yet because the current game state is fully visible.
+
+## Milestone 7: Production Presentation Pass
+
+Elevate the active MonoGame vertical slice from polished prototype to production-quality presentation while preserving gameplay mechanics, balance, mission generation, tactical AI, layers, cube visualization, and save/load scope.
+
+Exit criteria:
+
+- The network viewport has a distinctive layered digital environment with subtle scan, circuit, distant activity, data-field, and atmosphere motion that does not interfere with readability.
+- Connections read as active communication channels through glow, packet trails, relay amplification, ownership color, and subdued inactive signal noise.
+- Node ownership, type, objective, relay, corruption, instability, hover, selection, and action feedback are readable through layered lighting, silhouettes, distortion, and event pulses before relying on text.
+- Camera pan, zoom, and recenter behavior use smoothed inertial movement.
+- The HUD is visually integrated as compact trace instrumentation and keeps the board dominant.
+- Synthesized audio remains centralized in `AudioService`, uses committed assets, and supports pressure-reactive ambient sound.
+- Core gameplay rules, balance values, tactical AI behavior, mission generation, layers, cube visualization, and retired frontend scope remain unchanged.
+
+Status: implemented as the production presentation pass for the MonoGame vertical slice.

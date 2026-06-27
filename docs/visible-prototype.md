@@ -1,6 +1,6 @@
-# Legacy Godot Prototype
+# Retired Visible Prototype
 
-Milestone 1.5 added the first launchable Godot scene for the 2D network prototype. That prototype is now retired from the active workflow. The files remain for reference, but new frontend work should use `src/CodecTactics.MonoGame`.
+Milestone 1.5 added the first launchable scene for the 2D network prototype. That prototype has been removed from the active workflow. New frontend work should use `src/CodecTactics.MonoGame`.
 
 ## Scope
 
@@ -31,22 +31,6 @@ Excluded:
 - Save/load.
 - Production art or animation.
 
-## Launch
-
-The Godot launch path is legacy-only:
-
-```text
-res://scenes/Main.tscn
-```
-
-The scene script is:
-
-```text
-res://src/CodecTactics.Godot/PrototypeScene.cs
-```
-
-The root Godot C# project referenced `src/CodecTactics.Core` so scene scripts could call the tested domain model directly.
-
 ## Validation
 
 Run the standard repository validation for the active MonoGame workflow:
@@ -55,4 +39,4 @@ Run the standard repository validation for the active MonoGame workflow:
 .\scripts\validate.ps1
 ```
 
-Validation no longer invokes Godot. It checks repository structure, builds the .NET solution, and runs the core tests.
+Validation checks repository structure, builds the .NET solution, and runs the core tests.

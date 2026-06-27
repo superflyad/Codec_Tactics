@@ -2,7 +2,7 @@
 
 The current vertical slice is one complete authored mission named `Secure the Uplink`. It is intentionally small and uses only existing 2D network rules: claiming, reinforcing, weakening corruption, energy, corruption pressure, instability, collapse, and deterministic expansion.
 
-All mission rules live in `CodecTactics.Core`. The active MonoGame frontend displays state through a deterministic network topology, lets the player choose an action mode, sends clicks to core, and renders the returned feedback. The previous Godot implementation is legacy-only.
+All mission rules live in `CodecTactics.Core`. The active MonoGame frontend displays state through a deterministic network topology, lets the player choose an action mode, sends clicks to core, and renders the returned feedback. The previous legacy frontend implementation is legacy-only.
 
 ## Mission Definition
 

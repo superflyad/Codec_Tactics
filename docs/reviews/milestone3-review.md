@@ -4,7 +4,7 @@ Review date: 2026-06-26
 
 ## Review Scope
 
-This is a review-only balance-readiness audit of Milestone 3 before adding layers, cube faces, or multiple board sizes. It covers correctness, deterministic behavior, test coverage, readability, Godot/core separation, balance risks, hard-to-tune formulas, and readiness for future topology work.
+This is a review-only balance-readiness audit of Milestone 3 before adding layers, cube faces, or multiple board sizes. It covers correctness, deterministic behavior, test coverage, readability, legacy frontend/core separation, balance risks, hard-to-tune formulas, and readiness for future topology work.
 
 No mechanics, layers, cubes, behavior refactors, or tuning changes were made as part of this review.
 
@@ -17,7 +17,7 @@ Reviewed files:
 - `docs/mechanics.md`
 - `docs/network-integrity.md`
 - `src/CodecTactics.Core/Network/*`
-- `src/CodecTactics.Godot/PrototypeScene.cs`
+- `src/retired frontend/PrototypeScene.cs`
 - `tests/CodecTactics.Core.Tests/Program.cs`
 
 ## Summary of Milestone 3
@@ -28,7 +28,7 @@ The current system is a solid 4x4 deterministic prototype. It is not yet balance
 
 ## Strengths
 
-- Core gameplay remains in `CodecTactics.Core`; Godot reads state and sends actions.
+- Core gameplay remains in `CodecTactics.Core`; legacy frontend reads state and sends actions.
 - Determinism is strong. Node ordering, row-major tie breaks, fixed pressure changes, and no random inputs make behavior reproducible.
 - The main formulas are documented in `docs/network-integrity.md` and mostly map cleanly to `NetworkIntegrityEvaluator`.
 - Invalid player actions fail without spending energy, advancing turns, or resolving corruption.
@@ -44,7 +44,7 @@ The current system is a solid 4x4 deterministic prototype. It is not yet balance
 - `WeakenEnemyConnectionWithResult` charges `NetworkRules.ReinforceEnergyCost`; there is no separately named weaken cost.
 - The term `WeakConnectionThreat` means weak ownership support, not weakened `ConnectionState.Strength`, which is easy to misread.
 - Stable player-owned nodes can be selected as a corruption focus target but cannot be taken by expansion. That matches the docs, but it can look like corruption stalled unless the message is read carefully.
-- Reinforce and weaken actions exist in core but are not exposed in the Godot prototype, so the visible prototype cannot yet play the full Milestone 3 response loop.
+- Reinforce and weaken actions exist in core but are not exposed in the legacy prototype, so the visible prototype cannot yet play the full Milestone 3 response loop.
 
 ## Correctness
 
@@ -73,7 +73,7 @@ Missing or thin coverage:
 - Long-chain penalties across several distances.
 - Instability recovery after reinforcement or topology repair.
 - Multiple simultaneous collapses and collapse ordering.
-- Godot-facing reinforce and weaken workflows.
+- frontend-facing reinforce and weaken workflows.
 - Scripted multi-turn balance snapshots for energy, pressure, ownership, instability, and collapse.
 
 ## Readability
@@ -82,9 +82,9 @@ The code is readable for the current prototype. `NetworkRules` centralizes most 
 
 Readability will degrade if more modifiers are added to the existing evaluator without decomposition. Integrity, threat, danger text, distance checks, instability advancement, and collapse collection currently share one pass. That is acceptable now, but layers and cube faces will add enough context that separate named steps or a risk breakdown object would help.
 
-## Godot/Core Separation
+## Frontend/Core Separation
 
-Separation is healthy. Godot does not compute integrity, threat, collapse, claim reach, energy, or corruption spread. It renders core state and calls core actions.
+Separation is healthy. legacy frontend does not compute integrity, threat, collapse, claim reach, energy, or corruption spread. It renders core state and calls core actions.
 
 The visible prototype is behind the core mechanically: it exposes claiming and end turn, but not reinforce or weaken. That is not a separation violation, but it does block balance assessment because players cannot use two of the core responses to danger.
 
@@ -171,7 +171,7 @@ The visible prototype is behind the core mechanically: it exposes claiming and e
 - Row-major tie breaking is not enough for multi-face deterministic ordering.
 - Orthogonal grid adjacency does not describe cube seams, portals, or wrapped edges.
 - Dense bonus and frontier exposure will change meaning at face edges.
-- The Godot prototype is 2D debug drawing and does not establish how cube-face state remains readable.
+- The legacy prototype is 2D debug drawing and does not establish how cube-face state remains readable.
 
 ## Risks Before Adding Multiple Board Sizes
 
@@ -191,7 +191,7 @@ The visible prototype is behind the core mechanically: it exposes claiming and e
 6. Add inactive-link tests for claim reach, integrity, threat, and corruption pathing.
 7. Add instability recovery tests.
 8. Add multiple-collapse tests.
-9. Expose reinforce and weaken in the Godot prototype before balance playtesting.
+9. Expose reinforce and weaken in the legacy prototype before balance playtesting.
 10. Add a scripted multi-turn balance snapshot suite for the default scenario.
 
 ## Recommended Next Milestone

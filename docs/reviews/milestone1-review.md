@@ -2,19 +2,19 @@
 
 Date: 2026-06-14
 
-Scope: senior engineering review after Milestone 1 completion. This review covers architecture, code quality, test quality, documentation, scalability, Godot integration risk, and likely breakpoints for future layer and cube work. No gameplay behavior was changed.
+Scope: senior engineering review after Milestone 1 completion. This review covers architecture, code quality, test quality, documentation, scalability, frontend integration risk, and likely breakpoints for future layer and cube work. No gameplay behavior was changed.
 
 ## Overall Assessment
 
-Milestone 1 establishes a solid foundation for a deterministic, testable network tactics core. The most important architectural choice is good: gameplay rules currently live in a pure C# project instead of Godot scene code. That keeps the prototype easy to validate and gives future rendering work a clean model to consume.
+Milestone 1 establishes a solid foundation for a deterministic, testable network tactics core. The most important architectural choice is good: gameplay rules currently live in a pure C# project instead of frontend scene code. That keeps the prototype easy to validate and gives future rendering work a clean model to consume.
 
-The main risk is that the current model is still shaped around a fixed 2D grid and a compact all-in-one `NetworkGame` coordinator. That is reasonable for Milestone 1, but it will become fragile as soon as layers, scenario rules, richer enemy behavior, and Godot UI feedback arrive.
+The main risk is that the current model is still shaped around a fixed 2D grid and a compact all-in-one `NetworkGame` coordinator. That is reasonable for Milestone 1, but it will become fragile as soon as layers, scenario rules, richer enemy behavior, and frontend UI feedback arrive.
 
 Risk rating: medium.
 
 ## Strengths
 
-- The core domain is isolated in `src/CodecTactics.Core`, which is the right boundary before Godot integration.
+- The core domain is isolated in `src/CodecTactics.Core`, which is the right boundary before frontend integration.
 - The rules are deterministic, making tests straightforward and repeatable.
 - `NodeId`, `NodeState`, `ConnectionState`, `NetworkBoard`, and `NetworkGame` are small enough to reason about.
 - The test project has no third-party dependency, which keeps validation lightweight.
@@ -27,12 +27,12 @@ Risk rating: medium.
 - `NetworkGame` currently owns player action validation, state mutation, enemy turn policy, outcome evaluation, turn progression, and default scenario setup. This is the biggest near-term source of technical debt.
 - `NetworkBoard.CreateGrid` is the only board construction path. The core still assumes rectangular 2D coordinates, width, height, and orthogonal adjacency.
 - `NodeId` only stores `X` and `Y`, so adding layers will require either changing a core identity type or adding parallel identity concepts later.
-- `NodeState` is mutable and exposes rule-changing methods directly. This is fine for a prototype, but Godot UI and future systems could accidentally mutate game state outside an intended command flow.
+- `NodeState` is mutable and exposes rule-changing methods directly. This is fine for a prototype, but frontend UI and future systems could accidentally mutate game state outside an intended command flow.
 - Enemy spread is implemented as inline LINQ inside `NetworkGame`. It is deterministic, but not an explicit strategy or policy.
 - Outcome rules are placeholders but are not separated from the turn engine, so real scenario win/loss rules may be awkward to add.
 - Connection lookup is linear over all connections. This is acceptable for 16 nodes, but it will not scale cleanly to dense layers or cube-like topology.
 - The tests prove happy-path mechanics but do not deeply cover invalid actions, outcome transitions, exhausted boards, disconnected links, or mutation boundaries.
-- Godot integration is not validated beyond project metadata. `project.godot` has no main scene and `scenes/` only contains `.gitkeep`.
+- frontend integration is not validated beyond project metadata. `retired project metadata` has no main scene and `scenes/` only contains `.gitkeep`.
 
 ## Technical Debt
 
@@ -42,7 +42,7 @@ Risk rating: medium.
 - Node identity is 2D-only.
 - There is no command/result model for player actions, so UI will only receive `bool` success/failure rather than actionable feedback.
 - There is no event, log, or turn summary object describing what changed during a move.
-- No serialization boundary exists for future save/load, replay, editor debug tools, or Godot scene hydration.
+- No serialization boundary exists for future save/load, replay, editor debug tools, or frontend scene hydration.
 
 ## Unnecessary Complexity
 
@@ -55,7 +55,7 @@ Risk rating: medium.
 - A scenario or ruleset abstraction for starts, board shape, win/loss conditions, and enemy policy.
 - A player command abstraction that can return structured failure reasons and changed-state summaries.
 - An enemy spread policy abstraction to keep deterministic AI testable while allowing richer behavior.
-- A read-only game snapshot or DTO boundary for Godot UI rendering.
+- A read-only game snapshot or DTO boundary for frontend UI rendering.
 - A turn result/event model for UI animation, combat logs, replays, and debugging.
 
 ## Test Quality
@@ -82,7 +82,7 @@ Recommended test improvements:
 
 - Keep the console runner for now, but group tests by domain area as the file grows.
 - Add helper methods for common game setup to keep future layer scenarios readable.
-- Start testing state deltas, not just final ownership, before Godot animation depends on move summaries.
+- Start testing state deltas, not just final ownership, before legacy frontend animation depends on move summaries.
 - Add tests for negative paths before expanding the action set.
 
 ## Documentation Quality
@@ -93,7 +93,7 @@ Documentation gaps:
 
 - No review or risk log existed before this document.
 - No explicit domain glossary for node, connection, integrity, layer, cube, corruption, and exposure.
-- No planned public API contract for what Godot should consume from the core.
+- No planned public API contract for what legacy frontend should consume from the core.
 - No examples of expected turn summaries or UI-facing state snapshots.
 - Milestone 2 in `docs/milestones.md` overlaps with behavior already present in Milestone 1: enemy spread and basic turn progression. The milestone text should be clarified before planning the next task.
 
@@ -115,7 +115,7 @@ Recommended scalability direction:
 
 - Add an adjacency index keyed by `NodeId` or a future generalized node identity.
 - Keep deterministic ordering explicit in the topology rather than sorting repeatedly at call sites.
-- Add read-only snapshots for UI rendering and previews so Godot does not repeatedly query mutable internals.
+- Add read-only snapshots for UI rendering and previews so legacy frontend does not repeatedly query mutable internals.
 - Avoid optimizing prematurely, but set the topology boundary before implementing layers.
 
 ## Layer Implementation Risks
@@ -146,7 +146,7 @@ Risk rating: medium now, high if cube visuals start before the core exposes stab
 Areas likely to break:
 
 - Cube visualization will need spatial metadata that is not currently represented in the core.
-- If Godot scenes bind directly to mutable `NodeState` objects, cube view state and gameplay state may become coupled.
+- If frontend scenes bind directly to mutable `NodeState` objects, cube view state and gameplay state may become coupled.
 - The core has no view model or projection layer for mapping gameplay topology to 2D or cube coordinates.
 - Selection feedback will need structured reasons and available action previews, not just `bool` return values.
 - Turn-by-turn animation will need event summaries that do not exist yet.
@@ -158,26 +158,26 @@ Recommended fixes before cube work:
 - Add an action preview API for valid targets, affected connections, and risk exposure.
 - Preserve deterministic ordering independent of visual face orientation.
 
-## Godot Integration Risks
+## Frontend Integration Risks
 
 Risk rating: medium.
 
-The project has Godot metadata but no gameplay scene, main scene, C# Godot scripts, or editor validation. The current core is ready to be consumed by Godot, but the integration path is not proven.
+The project has legacy frontend metadata but no gameplay scene, main scene, C# frontend scripts, or editor validation. The current core is ready to be consumed by legacy frontend, but the integration path is not proven.
 
 Specific risks:
 
-- Godot may require project or assembly settings that are not covered by the current .NET-only validation.
-- The core targets `net8.0`; compatibility should be verified against the Godot .NET version used locally.
+- The legacy editor may require project or assembly settings that are not covered by the current .NET-only validation.
+- The core targets `net8.0`; compatibility should be verified against the retired editor .NET version used locally.
 - Without a main scene, validation cannot catch scene loading, script binding, input, or rendering issues.
 - UI code may be tempted to mutate `NodeState` directly because the model exposes mutable objects.
-- Godot-facing code will need structured turn results for animation and messaging; `bool` action methods are not enough.
+- frontend-facing code will need structured turn results for animation and messaging; `bool` action methods are not enough.
 
 Recommended fixes:
 
-- Add the smallest possible Godot scene that renders a read-only board snapshot.
-- Keep Godot scripts thin and route gameplay changes through core commands.
-- Add optional Godot CLI validation once a scene exists, while preserving .NET-only validation for environments without Godot.
-- Define one Godot-facing adapter before adding cube or layer UI.
+- Add the smallest possible frontend scene that renders a read-only board snapshot.
+- Keep frontend scripts thin and route gameplay changes through core commands.
+- Add optional legacy editor CLI validation once a scene exists, while preserving .NET-only validation for environments without legacy frontend.
+- Define one frontend-facing adapter before adding cube or layer UI.
 
 ## Recommended Priorities
 
@@ -186,9 +186,9 @@ Recommended fixes:
 3. Decide the future node identity model before adding layers.
 4. Add negative-path tests and outcome tests around current Milestone 1 behavior.
 5. Add structured action results and turn summaries for UI and future animation.
-6. Add a read-only snapshot/projection boundary for Godot.
+6. Add a read-only snapshot/projection boundary for legacy frontend.
 7. Clarify Milestone 2 because basic turn progression and deterministic enemy spread already exist.
-8. Add a minimal Godot scene only after the snapshot boundary exists.
+8. Add a minimal frontend scene only after the snapshot boundary exists.
 9. Add adjacency indexing when topology expands beyond the 4x4 prototype.
 
 ## Recommended Fixes

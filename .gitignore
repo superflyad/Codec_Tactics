@@ -1,6 +1,5 @@
 bin/
 obj/
-.godot/
 .mono/
 .import/
 export.cfg

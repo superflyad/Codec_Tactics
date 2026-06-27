@@ -13,20 +13,20 @@
 - Provide immediate feedback for valid and invalid expansion choices.
 - Implemented in pure C# with deterministic enemy spread, turn progression, and console test coverage.
 
-## Milestone 1.5: Visible Godot Prototype
+## Milestone 1.5: Retired Visible Prototype
 
-- Add a launchable Godot main scene.
+- Add a launchable prototype scene.
 - Render the tested 2D network board with temporary visual nodes and connections.
 - Route node clicks and the End Turn button through `CodecTactics.Core`.
-- Keep Godot scene code thin and free of gameplay rules.
-- Status: implemented historically and now retired as a legacy frontend.
+- Keep frontend scene code thin and free of gameplay rules.
+- Status: implemented historically and now removed from the active repository.
 
 ## Workflow Migration: MonoGame Frontend
 
 - Add a Visual Studio-first MonoGame project at `src/CodecTactics.MonoGame`.
 - Reference `CodecTactics.Core` from the MonoGame frontend.
 - Keep all gameplay and mission rules in the core project.
-- Remove Godot from validation and active launch instructions while retaining legacy files until safe removal.
+- Remove retired frontend tooling from validation and active launch instructions.
 - Status: active workflow.
 
 ## Milestone 2: Strategic 2D Node Decisions
@@ -68,7 +68,7 @@
 - Increase the MonoGame window size and center the authored board.
 - Add a readable HUD with action buttons, selected action highlight, keyboard shortcut parity, action log, invalid move feedback, and mission status.
 - Add readable node labels, hover tooltips, valid move highlights, objective highlight, corruption/collapse feedback, and win/loss banner.
-- Keep the pass presentation-only with no new gameplay rules, layers, cubes, or Godot work.
+- Keep the pass presentation-only with no new gameplay rules, layers, cubes, or retired frontend work.
 - Status: implemented as the first readability and playability pass for the MonoGame vertical slice.
 
 ## MonoGame Playability Pass 2
@@ -78,7 +78,7 @@
 - Expand hover details with selected-action cost, valid-result preview, and blocked-target explanations.
 - Show valid targets clearly and dim invalid targets for the selected action.
 - Improve mission feed, objective progress, corruption/collapse feedback, action-log density, selected-node feedback, and end-state banner placement.
-- Keep the pass presentation-only with no new gameplay rules, layers, cubes, or Godot work.
+- Keep the pass presentation-only with no new gameplay rules, layers, cubes, or retired frontend work.
 - Status: implemented as the second clarity and game-feel pass for the MonoGame vertical slice.
 
 ## Milestone 4: Visual Identity
@@ -88,7 +88,7 @@
 - Differentiate Core, Resource, Relay, Firewall, Objective, Standard, and Corrupted nodes through silhouette, iconography, color, animation, and outline rather than abbreviated text.
 - Add presentation-focused camera zoom, pan, and recenter behavior with comfortable margins for larger future maps.
 - Reduce the HUD to concise action, resource, objective, status, and trace indicators so the network remains the primary visual focus.
-- Keep the pass presentation-only with no new gameplay rules, layers, cubes, or Godot work.
+- Keep the pass presentation-only with no new gameplay rules, layers, cubes, or retired frontend work.
 - Status: implemented as the first visual identity pass for the MonoGame vertical slice.
 
 ## Milestone 5: Interaction, Animation, and Audio
@@ -97,7 +97,7 @@
 - Make the network feel alive through directional packet flow, relay amplification pulses, corruption pressure pulses, and idle node activity.
 - Add lightweight visual effects for valid actions, invalid actions, captures, reinforcements, weakening, corruption spread, objective progress, victory, and defeat.
 - Add a centralized MonoGame audio service with committed synthesized digital sound assets instead of placeholders.
-- Keep the pass presentation-only with no new gameplay rules, balance changes, layers, cubes, or Godot work.
+- Keep the pass presentation-only with no new gameplay rules, balance changes, layers, cubes, or retired frontend work.
 - Status: implemented as the interaction, animation, and audio polish pass for the MonoGame vertical slice.
 
 ## Milestone 6: Procedural Mission Generation
@@ -108,7 +108,7 @@
 - Surface seed replay and new-seed controls in the active MonoGame frontend.
 - Status: implemented as the procedural replayability foundation.
 
-## Milestone 7: Tactical AI and Enemy Personalities
+## Tactical AI and Enemy Personalities
 
 - Replace fixed enemy spread priority with a modular tactical evaluator that scores legal corruption actions every turn.
 - Add Aggressive, Defensive, Economic, Opportunistic, and Corruption-Focused personalities using the same gameplay rules.
@@ -116,6 +116,17 @@
 - Report enemy source, target, primary scoring factor, and concise intent summary through core action results.
 - Visualize enemy intent in MonoGame with HUD profile text, source-to-target emphasis, and target rings.
 - Status: implemented as the first tactical opponent pass.
+
+## Milestone 7: Production Presentation Pass
+
+- Elevate the active MonoGame vertical slice from polished prototype to production-quality presentation without changing gameplay mechanics, balance, AI, mission generation, layers, cube visualization, or save/load.
+- Replace the empty-feeling backdrop with subtle layered digital environment motion, scan effects, circuit paths, distant network activity, and atmospheric energy fields that do not reduce readability.
+- Upgrade connections into glowing active communication channels with packet trails, relay amplification, inactive signal noise, and corruption/player ownership color.
+- Strengthen node rendering through ownership glow, objective beacon lighting, relay pulses, corruption distortion, unstable warning illumination, hover/selection easing, and event pulse feedback.
+- Refine camera feel with inertial pan, zoom, and recenter movement.
+- Integrate the HUD into the network style with translucent trace panels, clearer hierarchy, compact event history, and stronger action-state markers.
+- Keep synthesized audio cohesive by layering existing cues and modulating ambient network hum with mission pressure.
+- Status: implemented as the production presentation pass for the MonoGame vertical slice.
 
 ## Milestone 3.5: Layers
 

@@ -98,6 +98,8 @@ Difficulty changes decision quality by selecting from evaluated candidates. It d
 
 Milestone 5 keeps animation, visual effects, camera feel, and audio in the MonoGame layer. `AudioService` owns playback of committed sound assets, while `Game1` translates core action results into presentation events such as pulse rings, shake, ownership interpolation, and sound cues. The core model remains deterministic and does not know about rendering, animation timing, or audio.
 
-The previous Godot scene and project files are legacy artifacts. They should not be used for validation or new active frontend work unless a future task explicitly reopens that path.
+The Milestone 7 production presentation pass extends the same separation. `Game1` owns layered digital environment rendering, active connection glow and packet trails, node lighting, corruption distortion, relay pulses, trace-panel styling, and inertial camera motion. `AudioService` remains the audio boundary and can modulate the existing synthesized ambient hum from presentation-readable state such as corruption pressure or objective progress. None of these systems create gameplay facts or change core rule evaluation.
+
+The previous frontend scene and project files are legacy artifacts. They should not be used for validation or new active frontend work unless a future task explicitly reopens that path.
 
 The MonoGame frontend reads AI intent from `GameActionResult` and `NetworkGame.LastEnemyDecision`. It can highlight source-to-target pressure, target emphasis, profile, difficulty, and concise turn summaries without owning AI rules.

@@ -4,7 +4,7 @@ Codec_Tactics is an early-stage C# MonoGame project for a turn-based network tac
 
 The player builds a growing 2D network. Each expansion opens useful paths, but poor choices can expose routes for enemy corruption. Future milestones may explore layers and cube-inspired visualization, but the active playable mission intentionally keeps gameplay flat and focused.
 
-This repository is currently at Milestone 7: tactical AI and enemy personalities. It contains a deterministic core loop in pure C# plus a MonoGame frontend that renders generated missions as responsive living digital networks rather than grid-first debug boards. It still intentionally avoids layers, cube visualization, save/load, real art, and new player mechanics.
+This repository is currently at Milestone 7: production presentation pass. It contains a deterministic core loop in pure C# plus a MonoGame frontend that renders generated missions as responsive living digital networks with layered digital environment motion, active communication channels, reactive lighting, camera inertia, integrated trace UI, and synthesized network audio. It still intentionally avoids layers, cube visualization, save/load, real art, and new player mechanics.
 
 ## Current Foundation
 
@@ -14,11 +14,11 @@ This repository is currently at Milestone 7: tactical AI and enemy personalities
 - Documentation for architecture, milestones, contribution workflow, and Codex usage
 - Pure C# 2D network prototype with configurable board definitions, explicit graph links, layout positions, ownership, node types, energy costs, network integrity, threat, instability, deterministic corruption pressure, collapse, turn counter, and objective outcomes
 - `BoardDefinition`, `GameConfiguration`, `ProceduralMissionSettings`, and deterministic procedural generation models that keep existing mechanics data-driven and prepare the core for later layers and cube faces
-- Network-first MonoGame presentation that draws generated missions through deterministic topology positions, animated packet flow, relay amplification pulses, smooth camera zoom/pan/recenter, silhouette/icon node identities, corruption overlays, event pulse rings, hover/selection/capture transitions, concise HUD indicators, hover details, highlights, mission log, seed replay/new-seed controls, and win/loss banner while routing input through `CodecTactics.Core`
+- Network-first MonoGame presentation that draws generated missions through deterministic topology positions, layered animated digital backdrop, glowing active communication channels, animated packet flow, relay amplification pulses, smooth inertial camera zoom/pan/recenter, silhouette/icon node identities, corruption overlays, objective beacons, event pulse rings, hover/selection/capture transitions, integrated trace UI, hover details, highlights, mission log, seed replay/new-seed controls, and win/loss banner while routing input through `CodecTactics.Core`
 - Centralized MonoGame `AudioService` with committed synthesized digital WAV assets for hover, selection, confirmation, invalid actions, capture, reinforcement, weakening, corruption, objective progress, victory, defeat, reset, and ambient network hum
 - Deterministic procedural missions with generated graph topology, mission placement, objective hold win condition, loss states, player feedback, replayable seeds, and a restartable game loop
 - Modular tactical enemy AI with Aggressive, Defensive, Economic, Opportunistic, and Corruption-Focused profiles that score legal corruption actions from the visible board state without hidden bonuses
-- Legacy Godot files remain for reference only and are not part of validation or the active frontend workflow
+- Retired frontend files have been removed from the active repository.
 
 ## Requirements
 
@@ -79,7 +79,7 @@ The app launches a generated procedural mission with a deterministic enemy perso
 - Lose: the player core collapses or corruption captures the objective.
 - Enemy: tactical corruption AI evaluates legal pressure targets each turn and reports its profile, target, and intent in the HUD.
 
-Use the action buttons or number keys to choose Claim, Reinforce, or Weaken. The selected action is highlighted in the HUD, valid targets pulse on the network, and invalid targets are visually suppressed while the hover tooltip explains the block. The objective has a pulsing gold ring, unstable nodes pulse orange, corrupted nodes carry a red disruption mark, and the selected node receives a white ring. Click a node to apply the selected action, or use End Turn to let corruption act without spending energy. Hover nodes to inspect ownership, type, integrity, threat, cost, expected action result, blocked reason, instability, and danger reason. After enemy turns, the board emphasizes the enemy source and target so the player can read the pressure path and intent. The board uses hover/selection easing, capture and corruption shockwaves, relay packet amplification, invalid-action shake, objective pulses, screen-level mission-result emphasis, and synthesized digital audio cues for immediate feedback. Replay resets the current seed deterministically; New Seed rolls a different generated network and AI personality.
+Use the action buttons or number keys to choose Claim, Reinforce, or Weaken. The selected action is highlighted in the integrated trace UI, valid targets pulse on the network, and invalid targets are visually suppressed while the hover tooltip explains the block. The objective has a beacon glow, unstable nodes pulse orange, relay nodes emit amplifier ticks, corrupted nodes carry red disruption marks, and the selected node receives a white ring. Click a node to apply the selected action, or use End Turn to let corruption act without spending energy. Hover nodes to inspect ownership, type, integrity, threat, cost, expected action result, blocked reason, instability, and danger reason. After enemy turns, the board emphasizes the enemy source and target so the player can read the pressure path and intent. The board uses layered background motion, active link packets, hover/selection easing, capture and corruption shockwaves, relay packet amplification, invalid-action shake, objective pulses, screen-level mission-result emphasis, and synthesized digital audio cues with ambient intensity that reacts to mission pressure. Replay resets the current seed deterministically; New Seed rolls a different generated network and AI personality.
 
 ## Validate
 
@@ -89,7 +89,7 @@ Run from the repository root:
 .\scripts\validate.ps1
 ```
 
-The script checks required repository files, confirms Godot validation is retired, builds the .NET solution, and runs tests.
+The script checks required repository files, builds the .NET solution, and runs tests.
 
 ## Project Layout
 
@@ -98,14 +98,21 @@ docs/                         Design and architecture notes
 scripts/                      Developer automation
 src/CodecTactics.Core/        Pure C# game-domain foundation
 src/CodecTactics.MonoGame/    Active MonoGame frontend
-src/CodecTactics.Godot/       Legacy Godot presentation scripts retained for reference
 tests/CodecTactics.Core.Tests/ Console test runner
-project.godot                 Legacy Godot project metadata
-Codec_Tactics.csproj          Legacy Godot C# project
 Codec_Tactics.sln             .NET validation solution
 ```
 
-## Milestone 7 Mechanics
+## Milestone 7 Presentation Pass
+
+- The production presentation pass is presentation-only and does not change player mechanics, tactical AI, balance, mission generation, layers, cube visualization, or save/load.
+- The network viewport uses layered animated environment rendering: scanlines, drifting circuit paths, distant infrastructure activity, foreground sweep, and subtle color atmosphere that stays behind gameplay.
+- Connections render as active communication channels with glow lanes, packet trails, relay amplification pulses, and subdued inactive-link signal noise.
+- Nodes use layered ownership/type lighting, objective beacon rings, relay amplifier ticks, corruption distortion marks, unstable warning glow, selection/hover easing, and existing event pulse effects.
+- Camera movement uses smoothed target following with inertial pan/zoom/recenter behavior.
+- The HUD is styled as an integrated trace panel with stronger hierarchy, translucent signal bands, action-state markers, and compact recent event history so the board remains dominant.
+- `AudioService` keeps the committed synthesized cues and modulates the ambient network hum based on corruption pressure and objective progress.
+
+## Current Mechanics
 
 - The default prototype board is a 4x4 orthogonal node grid defined by `BoardDefinition.CreateDefaultPrototype()`.
 - The core engine can initialize authored grids or explicit generated graph topologies from `BoardDefinition`.
@@ -135,7 +142,7 @@ Codec_Tactics.sln             .NET validation solution
 
 ## Milestone 1.5 Visible Prototype
 
-- The original Milestone 1.5 Godot prototype is now retired from the active workflow.
+- The original Milestone 1.5 legacy prototype is now retired from the active workflow.
 - The active MonoGame frontend renders the current authored mission board as an irregular network topology with animated links, camera zoom/pan/recenter, icon-driven nodes, action buttons, hover tooltip, valid move highlights, dimmed invalid targets, objective/danger pulse outlines, result log, and compact win/loss banner.
 - Neutral, player, enemy/corruption, and reinforced nodes have distinct visual treatments.
 - Node types use distinct silhouettes, iconography, colors, glow, and overlays before relying on text.
@@ -144,13 +151,13 @@ Codec_Tactics.sln             .NET validation solution
 - End Turn uses the real core corruption turn.
 - The HUD shows selected action, turn, energy, objective progress, corruption pressure, enemy AI profile, result feedback, invalid move reasons, and recent action history.
 - Replay starts a fresh deterministic copy of the active seed. New Seed creates a different generated mission.
-- Milestone 4 is presentation-only: it establishes Codec_Tactics' network-first visual identity without adding layers, cube visualization, Godot work, or new mechanics.
+- Milestone 4 is presentation-only: it establishes Codec_Tactics' network-first visual identity without adding layers, cube visualization, retired frontend work, or new mechanics.
 - Milestone 5 is presentation-only: it adds responsive interaction animation, event visual effects, living-network motion, and centralized real audio assets without changing core gameplay rules or mission balance.
 
 ## Current Limitations
 
 - MonoGame visuals and audio now establish the intended responsive network feel, but the visuals are still code-drawn prototype art rather than final production assets.
-- Legacy Godot files remain in the repository but are not active workflow targets.
+- Retired frontend files are no longer part of the active repository.
 - Procedural generation is still a 2D layered graph foundation; campaign progression and saved seed history are not implemented yet.
 - Network integrity and threat formulas are prototype balance values.
 - Alternate board definitions are engine-supported but not yet balanced scenarios.

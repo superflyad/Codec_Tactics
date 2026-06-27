@@ -24,11 +24,13 @@ public class Game1 : Game
     private const int MaxLogEntries = 4;
     private const float NodeWorldRadius = 42f;
     private const float CameraMargin = 120f;
+    private const float CameraFollow = 0.16f;
+    private const float CameraInertia = 0.72f;
 
     private static readonly XnaColor BackgroundColor = new(7, 10, 15);
-    private static readonly XnaColor NetworkSurfaceColor = new(9, 15, 24);
-    private static readonly XnaColor PanelColor = new(20, 25, 33, 238);
-    private static readonly XnaColor PanelBorderColor = new(66, 78, 96);
+    private static readonly XnaColor NetworkSurfaceColor = new(6, 12, 20);
+    private static readonly XnaColor PanelColor = new(13, 19, 28, 222);
+    private static readonly XnaColor PanelBorderColor = new(56, 76, 97);
     private static readonly XnaColor TextColor = new(232, 238, 247);
     private static readonly XnaColor MutedTextColor = new(151, 164, 184);
     private static readonly XnaColor AccentColor = new(75, 190, 235);
@@ -91,8 +93,10 @@ public class Game1 : Game
     private NodeId? _selectedNodeId;
     private Vector2 _cameraCenter;
     private Vector2 _targetCameraCenter;
+    private Vector2 _cameraVelocity;
     private float _zoom = 1f;
     private float _targetZoom = 1f;
+    private float _zoomVelocity;
     private double _totalSeconds;
 
     public Game1()
@@ -143,8 +147,7 @@ public class Game1 : Game
         }
 
         HandleCameraInput(mouse, keyboard);
-        _cameraCenter = Vector2.Lerp(_cameraCenter, _targetCameraCenter, 0.18f);
-        _zoom = MathHelper.Lerp(_zoom, _targetZoom, 0.18f);
+        UpdateCameraMotion();
         _hoveredNode = GetNodeAt(mouse.Position);
         if (_hoveredNode?.Id != _lastHoveredNodeId)
         {
@@ -231,24 +234,82 @@ public class Game1 : Game
         }
 
         DrawVisualEffects();
+        DrawForegroundScan(viewport);
         DrawText("CODEC_TACTICS", viewport.X + 18, viewport.Y + 16, 22, TextColor);
         DrawText(_game.ObjectiveText, viewport.X + 20, viewport.Y + 48, 14, MutedTextColor, viewport.Width - 42);
     }
 
     private void DrawNetworkBackdrop(XnaRectangle viewport)
     {
-        var drift = (float)(_totalSeconds * 18d % 42d);
-        for (var x = viewport.X - 60; x < viewport.Right + 60; x += 42)
+        var slowDrift = (float)(_totalSeconds * 8d % 96d);
+        var fastDrift = (float)(_totalSeconds * 26d % 54d);
+        Fill(viewport, new XnaColor(4, 8, 14, 92));
+
+        for (var y = viewport.Y; y < viewport.Bottom; y += 5)
         {
-            DrawLine(new Vector2(x + drift, viewport.Y), new Vector2(x - 140 + drift, viewport.Bottom), new XnaColor(23, 39, 55, 76), 1);
+            var alpha = (byte)(y % 30 == 0 ? 22 : 8);
+            Fill(new XnaRectangle(viewport.X, y, viewport.Width, 1), new XnaColor((byte)56, (byte)108, (byte)137, alpha));
         }
 
-        for (var y = viewport.Y + 78; y < viewport.Bottom; y += 78)
+        for (var x = viewport.X - 160; x < viewport.Right + 160; x += 96)
         {
-            DrawLine(new Vector2(viewport.X, y), new Vector2(viewport.Right, y), new XnaColor(20, 36, 52, 52), 1);
+            DrawLine(
+                new Vector2(x + slowDrift, viewport.Y),
+                new Vector2(x - 300 + slowDrift, viewport.Bottom),
+                new XnaColor(30, 70, 96, 50),
+                1);
         }
 
-        DrawRectangle(viewport, new XnaColor(36, 67, 91), 2);
+        for (var x = viewport.X - 80; x < viewport.Right + 80; x += 54)
+        {
+            DrawLine(
+                new Vector2(x - fastDrift, viewport.Y),
+                new Vector2(x + 170 - fastDrift, viewport.Bottom),
+                new XnaColor(13, 33, 52, 64),
+                1);
+        }
+
+        for (var y = viewport.Y + 64; y < viewport.Bottom; y += 72)
+        {
+            var offset = (float)MathF.Sin((float)_totalSeconds * 0.8f + y * 0.03f) * 18f;
+            DrawLine(new Vector2(viewport.X, y + offset), new Vector2(viewport.Right, y - offset * 0.32f), new XnaColor(20, 45, 66, 42), 1);
+        }
+
+        DrawDistantNetworkActivity(viewport);
+        DrawBoardAtmosphere(viewport);
+        DrawRectangle(viewport, new XnaColor(42, 82, 108), 2);
+    }
+
+    private void DrawDistantNetworkActivity(XnaRectangle viewport)
+    {
+        for (var i = 0; i < 14; i++)
+        {
+            var phase = (float)(_totalSeconds * (0.16d + i * 0.017d) + i * 11.37d);
+            var x = viewport.X + 42 + (i * 83 + MathF.Sin(phase) * 24f) % Math.Max(1, viewport.Width - 84);
+            var y = viewport.Y + 98 + (i * 47 + MathF.Cos(phase * 0.73f) * 18f) % Math.Max(1, viewport.Height - 142);
+            var size = 3 + i % 4;
+            var color = i % 5 == 0
+                ? new XnaColor(255, 109, 127, 54)
+                : new XnaColor(79, 177, 214, 50);
+            Fill(new XnaRectangle((int)x, (int)y, size * 5, 1), color);
+            Fill(new XnaRectangle((int)x, (int)y - size * 2, 1, size * 4), color);
+        }
+    }
+
+    private void DrawBoardAtmosphere(XnaRectangle viewport)
+    {
+        var center = new Vector2(viewport.X + viewport.Width * 0.5f, viewport.Y + viewport.Height * 0.52f);
+        var pulse = GetPulse(0.74f, 0.2f);
+        DrawCircle(center, Math.Min(viewport.Width, viewport.Height) * (0.42f + pulse * 0.02f), new XnaColor(21, 52, 70, 24));
+        DrawCircle(center + new Vector2(-viewport.Width * 0.23f, -viewport.Height * 0.12f), viewport.Height * 0.28f, new XnaColor(19, 85, 76, 22));
+        DrawCircle(center + new Vector2(viewport.Width * 0.26f, viewport.Height * 0.16f), viewport.Height * 0.3f, new XnaColor(83, 28, 47, 20));
+    }
+
+    private void DrawForegroundScan(XnaRectangle viewport)
+    {
+        var scanY = viewport.Y + (int)((_totalSeconds * 74d) % viewport.Height);
+        Fill(new XnaRectangle(viewport.X, scanY, viewport.Width, 2), new XnaColor(104, 210, 240, 42));
+        Fill(new XnaRectangle(viewport.X, Math.Max(viewport.Y, scanY - 9), viewport.Width, 1), new XnaColor(104, 210, 240, 20));
     }
 
     private void DrawConnection(ConnectionState connection)
@@ -259,18 +320,25 @@ public class Game1 : Game
         var end = WorldToScreen(GetNodeWorldPosition(connection.Second));
         var active = connection.IsActive;
         var baseColor = GetConnectionColor(startNode, endNode, active);
+        var flowColor = GetFlowColor(startNode, endNode);
         var thickness = Math.Max(2, (int)(active ? 6 * _zoom : 3 * _zoom));
 
-        DrawLine(start, end, new XnaColor(7, 12, 19, 210), thickness + 5);
+        DrawLine(start, end, new XnaColor(1, 4, 9, 220), thickness + 9);
+        if (active)
+        {
+            DrawLine(start, end, new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)54), thickness + 17);
+            DrawLine(start, end, new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)84), thickness + 9);
+        }
+
         DrawLine(start, end, baseColor, thickness);
 
         if (!active)
         {
-            DrawLine(start, end, new XnaColor(95, 103, 116, 95), 1);
+            var staticPulse = (byte)(46 + GetPulse(2.2f, connection.First.X + connection.Second.Y) * 36);
+            DrawLine(start, end, new XnaColor((byte)95, (byte)103, (byte)116, staticPulse), 1);
             return;
         }
 
-        var flowColor = GetFlowColor(startNode, endNode);
         var edge = end - start;
         var length = edge.Length();
         if (length <= 0f)
@@ -279,12 +347,15 @@ public class Game1 : Game
         }
 
         var direction = Vector2.Normalize(edge);
-        for (var i = 0; i < 3; i++)
+        var normal = new Vector2(-direction.Y, direction.X);
+        var packetCount = startNode.Type == NodeType.Relay || endNode.Type == NodeType.Relay ? 5 : 4;
+        for (var i = 0; i < packetCount; i++)
         {
-            var t = (float)((_totalSeconds * 0.34d + i * 0.31d) % 1d);
-            var position = start + direction * (length * t);
-            var particle = new XnaRectangle((int)position.X - 4, (int)position.Y - 4, 8, 8);
-            Fill(particle, flowColor);
+            var t = (float)((_totalSeconds * 0.42d + i * (1d / packetCount) + connection.First.X * 0.03d) % 1d);
+            var lane = i % 2 == 0 ? -1f : 1f;
+            var position = start + direction * (length * t) + normal * lane * 4f;
+            DrawCircle(position, 4f + 2f * GetPulse(8.1f, i), new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)188));
+            DrawLine(position - direction * 13f, position + direction * 7f, new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)122), 3);
         }
 
         if (startNode.Type == NodeType.Relay || endNode.Type == NodeType.Relay)
@@ -313,6 +384,7 @@ public class Game1 : Game
         radius += visual.HoverAmount * 5f + visual.SelectAmount * 4f + visual.SelectFlash * 6f + visual.ImpactFlash * 8f;
         center += GetShakeOffset(visual.Shake, node.Id);
 
+        DrawNodeLighting(node, center, radius, ownerColor, typeColor, isObjective, pulse, visual);
         DrawCircleOutline(center, radius + 15f + pulse * 5f, new XnaColor(typeColor.R, typeColor.G, typeColor.B, node.Owner == NodeOwner.Neutral ? (byte)42 : (byte)95), 2);
         DrawCircleOutline(center, radius + 8f, new XnaColor(ownerColor.R, ownerColor.G, ownerColor.B, (byte)105), 3);
 
@@ -344,6 +416,11 @@ public class Game1 : Game
         if (node.Owner == NodeOwner.Enemy)
         {
             DrawCorruptionOverlay(center, radius, pulse);
+        }
+
+        if (node.Type == NodeType.Relay && node.Owner == NodeOwner.Player)
+        {
+            DrawRelayAmplifier(center, radius, pulse);
         }
 
         if (node.Owner == NodeOwner.Player)
@@ -448,12 +525,50 @@ public class Game1 : Game
         Fill(new XnaRectangle(x, y + 7, (int)(width * threatRatio), 4), WarningColor);
     }
 
+    private void DrawNodeLighting(NodeState node, Vector2 center, float radius, XnaColor ownerColor, XnaColor typeColor, bool isObjective, float pulse, NodeVisualState visual)
+    {
+        var ownershipAlpha = node.Owner == NodeOwner.Neutral ? 28 : 62;
+        DrawCircle(center, radius + 38f + pulse * 8f + visual.ImpactFlash * 16f, new XnaColor(ownerColor.R, ownerColor.G, ownerColor.B, (byte)ownershipAlpha));
+        DrawCircle(center, radius + 22f + visual.HoverAmount * 8f, new XnaColor(typeColor.R, typeColor.G, typeColor.B, (byte)(node.Owner == NodeOwner.Neutral ? 22 : 46)));
+
+        if (isObjective)
+        {
+            DrawCircle(center, radius + 56f + pulse * 18f, new XnaColor(ObjectiveColor.R, ObjectiveColor.G, ObjectiveColor.B, (byte)38));
+            DrawCircleOutline(center, radius + 43f + pulse * 14f, new XnaColor(ObjectiveColor.R, ObjectiveColor.G, ObjectiveColor.B, (byte)118), 2);
+        }
+
+        if (node.IsUnstable)
+        {
+            DrawCircle(center, radius + 45f + pulse * 12f, new XnaColor(WarningColor.R, WarningColor.G, WarningColor.B, (byte)32));
+        }
+    }
+
     private void DrawCorruptionOverlay(Vector2 center, float radius, float pulse)
     {
         var color = new XnaColor((byte)255, (byte)116, (byte)128, (byte)(170 + pulse * 55));
         DrawLine(center + new Vector2(-radius * 0.42f, -radius * 0.42f), center + new Vector2(radius * 0.42f, radius * 0.42f), color, 5);
         DrawLine(center + new Vector2(radius * 0.42f, -radius * 0.42f), center + new Vector2(-radius * 0.42f, radius * 0.42f), color, 5);
         DrawCircleOutline(center, radius + 10f + pulse * 12f, new XnaColor(255, 82, 104, 94), 2);
+
+        for (var i = 0; i < 5; i++)
+        {
+            var angle = (float)_totalSeconds * (1.2f + i * 0.13f) + i * 1.21f;
+            var start = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (radius * 0.34f);
+            var end = center + new Vector2(MathF.Cos(angle + 0.72f), MathF.Sin(angle + 0.72f)) * (radius * 0.78f);
+            DrawLine(start, end, new XnaColor(255, 80, 105, 94), 2);
+        }
+    }
+
+    private void DrawRelayAmplifier(Vector2 center, float radius, float pulse)
+    {
+        var relayColor = new XnaColor(96, 211, 255, 116);
+        DrawCircleOutline(center, radius + 17f + pulse * 9f, relayColor, 2);
+        for (var i = 0; i < 3; i++)
+        {
+            var angle = (float)_totalSeconds * 1.9f + MathHelper.TwoPi * i / 3f;
+            var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            DrawLine(center + direction * (radius * 0.72f), center + direction * (radius + 22f), relayColor, 2);
+        }
     }
 
     private void DrawVisualEffects()
@@ -485,11 +600,13 @@ public class Game1 : Game
     {
         var hud = GetHudBounds();
         Fill(hud, PanelColor);
+        Fill(new XnaRectangle(hud.X, hud.Y, 4, hud.Height), new XnaColor(AccentColor.R, AccentColor.G, AccentColor.B, (byte)160));
+        Fill(new XnaRectangle(hud.X + 4, hud.Y, hud.Width - 4, 64), new XnaColor(19, 35, 48, 134));
         DrawRectangle(hud, PanelBorderColor, 2);
 
         var x = hud.X + TextPadding;
         var y = hud.Y + TextPadding;
-        DrawText("Trace", x, y, 22, TextColor);
+        DrawText("TRACE", x, y, 22, TextColor);
         DrawText($"Turn {_game.TurnNumber}", hud.Right - 84, y + 4, 15, MutedTextColor);
         y += 36;
 
@@ -498,6 +615,7 @@ public class Game1 : Game
 
         DrawResourceStrip(x, y, hud.Width - TextPadding * 2);
         y += 54;
+        Fill(new XnaRectangle(x - 4, y - 5, hud.Width - TextPadding * 2 + 8, 44), new XnaColor(40, 24, 34, 106));
         DrawText($"{_game.Configuration.EnemyPersonality} AI", x, y, 14, WarningColor);
         DrawText(_game.Configuration.EnemyDifficulty.ToString(), x + 150, y, 13, MutedTextColor);
         y += 24;
@@ -513,8 +631,9 @@ public class Game1 : Game
         y = DrawCommandButton(x, y + 7, "N", "New Seed", ButtonAction.NewMission);
         y += 18;
 
-        DrawText("Signal", x, y, 16, TextColor);
+        DrawText("Signal", x, y, 16, AccentColor);
         y += 24;
+        Fill(new XnaRectangle(x - 4, y - 5, hud.Width - TextPadding * 2 + 8, Math.Min(98, EstimateWrappedHeight(_status, hud.Width - TextPadding * 2, 13) + 14)), new XnaColor(10, 17, 25, 126));
         DrawText(_status, x, y, 13, TextColor, hud.Width - TextPadding * 2);
         y += EstimateWrappedHeight(_status, hud.Width - TextPadding * 2, 13) + 10;
 
@@ -524,7 +643,7 @@ public class Game1 : Game
             y += EstimateWrappedHeight(_invalidReason, hud.Width - TextPadding * 2, 13) + 10;
         }
 
-        DrawText("Trace", x, y, 16, TextColor);
+        DrawText("Recent", x, y, 16, MutedTextColor);
         y += 23;
         foreach (var entry in _actionLog.TakeLast(MaxLogEntries))
         {
@@ -550,7 +669,12 @@ public class Game1 : Game
     {
         var selected = _selectedAction == action;
         var bounds = new XnaRectangle(x, y, HudWidth - TextPadding * 2, ButtonHeight);
-        Fill(bounds, selected ? new XnaColor(35, 72, 91) : new XnaColor(34, 41, 53));
+        Fill(bounds, selected ? new XnaColor(30, 68, 88, 218) : new XnaColor(24, 32, 43, 190));
+        if (selected)
+        {
+            Fill(new XnaRectangle(bounds.X, bounds.Y, 5, bounds.Height), iconColor);
+        }
+
         DrawRectangle(bounds, selected ? iconColor : PanelBorderColor, selected ? 3 : 2);
         DrawCircle(new Vector2(bounds.X + 23, bounds.Y + 19), 9, iconColor);
         DrawText(shortcut, bounds.X + 44, bounds.Y + 10, 13, MutedTextColor);
@@ -562,7 +686,7 @@ public class Game1 : Game
     private int DrawCommandButton(int x, int y, string shortcut, string label, ButtonAction action)
     {
         var bounds = new XnaRectangle(x, y, HudWidth - TextPadding * 2, ButtonHeight);
-        Fill(bounds, new XnaColor(35, 41, 52));
+        Fill(bounds, new XnaColor(24, 31, 41, 184));
         DrawRectangle(bounds, PanelBorderColor, 2);
         DrawText(shortcut, bounds.X + 14, bounds.Y + 10, 12, AccentColor);
         DrawText(label, bounds.X + 82, bounds.Y + 8, 16, TextColor);
@@ -673,6 +797,7 @@ public class Game1 : Game
         {
             var delta = mouse.Position.ToVector2() - _previousMouse.Position.ToVector2();
             _targetCameraCenter -= delta / Math.Max(0.1f, _zoom);
+            _cameraVelocity = -delta / Math.Max(0.1f, _zoom) * 0.08f;
         }
 
         var keyboardPan = Vector2.Zero;
@@ -699,6 +824,31 @@ public class Game1 : Game
         if (keyboardPan != Vector2.Zero)
         {
             _targetCameraCenter += Vector2.Normalize(keyboardPan) * 10f / Math.Max(0.1f, _zoom);
+        }
+    }
+
+    private void UpdateCameraMotion()
+    {
+        var desiredVelocity = (_targetCameraCenter - _cameraCenter) * CameraFollow;
+        _cameraVelocity = Vector2.Lerp(_cameraVelocity, desiredVelocity, 0.36f);
+        _cameraCenter += _cameraVelocity;
+        _cameraVelocity *= CameraInertia;
+
+        var desiredZoomVelocity = (_targetZoom - _zoom) * CameraFollow;
+        _zoomVelocity = MathHelper.Lerp(_zoomVelocity, desiredZoomVelocity, 0.36f);
+        _zoom += _zoomVelocity;
+        _zoomVelocity *= CameraInertia;
+
+        if (Vector2.DistanceSquared(_cameraCenter, _targetCameraCenter) < 0.01f)
+        {
+            _cameraCenter = _targetCameraCenter;
+            _cameraVelocity = Vector2.Zero;
+        }
+
+        if (MathF.Abs(_zoom - _targetZoom) < 0.001f)
+        {
+            _zoom = _targetZoom;
+            _zoomVelocity = 0f;
         }
     }
 
@@ -877,6 +1027,11 @@ public class Game1 : Game
     {
         var selectedNode = _selectedNodeId;
         var hoveredNode = _hoveredNode?.Id;
+        var pressureIntensity = Math.Clamp(_game.CorruptionPressure / 10f, 0f, 1f);
+        var objectiveIntensity = _game.RequiredObjectiveHoldTurns == 0
+            ? 0f
+            : Math.Clamp(_game.ObjectiveHoldTurns / (float)_game.RequiredObjectiveHoldTurns, 0f, 1f);
+        _audio.SetAmbientIntensity(Math.Max(pressureIntensity, objectiveIntensity * 0.7f));
 
         foreach (var node in _game.Board.Nodes)
         {
@@ -1067,6 +1222,8 @@ public class Game1 : Game
         {
             _cameraCenter = _targetCameraCenter;
             _zoom = _targetZoom;
+            _cameraVelocity = Vector2.Zero;
+            _zoomVelocity = 0f;
         }
     }
 
