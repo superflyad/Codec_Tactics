@@ -2,6 +2,10 @@ namespace CodecTactics.Core.Network;
 
 public sealed record GameConfiguration
 {
+    public EnemyPersonality EnemyPersonality { get; init; } = EnemyPersonality.Opportunistic;
+
+    public EnemyDifficulty EnemyDifficulty { get; init; } = EnemyDifficulty.Hard;
+
     public int InitialPlayerEnergy { get; init; } = NetworkRules.InitialPlayerEnergy;
 
     public int ClaimEnergyCost { get; init; } = NetworkRules.ClaimEnergyCost;

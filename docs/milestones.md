@@ -143,3 +143,37 @@ Exit criteria:
 - Audio is routed through a centralized presentation service and backed by committed synthesized WAV assets.
 - Core gameplay rules, balance, mission shape, layers, cube visualization, and Godot legacy files remain unchanged.
 - Validation covers existing deterministic rule behavior and the MonoGame project builds cleanly.
+
+## Milestone 6: Procedural Mission Generation
+
+Create replayable generated missions without changing the existing player mechanics.
+
+Exit criteria:
+
+- Procedural missions are deterministic from a seed.
+- Generated missions include explicit graph links, readable layout positions, player start, corruption starts, objective placement, and node type placement.
+- Generated missions use the same `MissionDefinition` and `NetworkGame` flow as authored missions.
+- The active frontend supports replaying the current seed and rolling a new seed.
+- Core tests cover determinism, graph validity, placement constraints, and layout readability.
+
+Status: implemented as the procedural mission foundation.
+
+## Milestone 7: Tactical AI and Enemy Personalities
+
+Improve opponent decision quality without adding player mechanics or changing combat rules.
+
+Exit criteria:
+
+- Enemy turns evaluate legal corruption actions from the current board state instead of following a fixed script.
+- Tactical scoring considers objective proximity, Relay and Resource value, network control, corruption opportunities, player expansion, defensive value, reachable territory, pressure efficiency, and future positioning.
+- Aggressive, Defensive, Economic, Opportunistic, and Corruption-Focused personalities use different weights over the same rules.
+- Difficulty changes which evaluated action is selected, without granting hidden resources or map knowledge.
+- `GameActionResult` reports enemy action type, source, target, profile, difficulty, primary factor, score, and intent summary for presentation.
+- The active frontend visualizes enemy intent with source-to-target highlights, target emphasis, AI profile text, and turn summaries.
+- Automated tests cover deterministic decisions, valid reachable action selection, objective prioritization, personality differences, difficulty quality, no illegal moves, and stable summaries.
+
+Current limitations:
+
+- Personalities are first-pass balance values.
+- Enemy actions still use the existing corruption pressure, spread, focus, and collapse rules.
+- AI has no hidden information model yet because the current game state is fully visible.

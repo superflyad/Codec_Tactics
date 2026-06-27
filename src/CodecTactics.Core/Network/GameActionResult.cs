@@ -9,4 +9,11 @@ public sealed record GameActionResult(
     NodeId? CorruptionFocusTarget = null,
     IReadOnlyList<NodeId>? CollapsedNodes = null,
     int ObjectiveHoldTurns = 0,
-    GameResult Result = GameResult.InProgress);
+    GameResult Result = GameResult.InProgress,
+    EnemyPersonality EnemyPersonality = EnemyPersonality.Opportunistic,
+    EnemyDifficulty EnemyDifficulty = EnemyDifficulty.Hard,
+    TacticalEnemyActionType EnemyActionType = TacticalEnemyActionType.None,
+    NodeId? EnemyActionSource = null,
+    string EnemyPrimaryFactor = "",
+    string EnemyIntentSummary = "",
+    double EnemyActionScore = 0d);

@@ -80,7 +80,9 @@ Implementation goals:
 - Visible risk before player commitment where possible.
 - Rules that can grow from simple 2D prototypes to layered spaces.
 
-Milestone 1 corruption expands from enemy-owned nodes into one adjacent neutral node, selected deterministically by row-major order. This is intentionally simple and exists to prove the loop before richer AI.
+Milestone 7 replaces the fixed corruption target priority with a tactical enemy planner in `CodecTactics.Core`. The planner evaluates legal adjacent pressure targets every enemy turn, scores them through a `TacticalEnemyProfile`, and returns a `TacticalEnemyDecision` for `NetworkGame` to execute through the existing corruption pressure and collapse rules. Personality configuration, action scoring, selection difficulty, and execution are intentionally separate so future personalities can be added without changing player actions or presentation code.
+
+Difficulty changes decision quality by selecting from evaluated candidates. It does not change corruption pressure growth, resistance values, player energy, or map knowledge.
 
 ## Future Visualization Goals
 
@@ -97,3 +99,5 @@ Milestone 1 corruption expands from enemy-owned nodes into one adjacent neutral 
 Milestone 5 keeps animation, visual effects, camera feel, and audio in the MonoGame layer. `AudioService` owns playback of committed sound assets, while `Game1` translates core action results into presentation events such as pulse rings, shake, ownership interpolation, and sound cues. The core model remains deterministic and does not know about rendering, animation timing, or audio.
 
 The previous Godot scene and project files are legacy artifacts. They should not be used for validation or new active frontend work unless a future task explicitly reopens that path.
+
+The MonoGame frontend reads AI intent from `GameActionResult` and `NetworkGame.LastEnemyDecision`. It can highlight source-to-target pressure, target emphasis, profile, difficulty, and concise turn summaries without owning AI rules.

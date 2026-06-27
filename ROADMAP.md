@@ -100,6 +100,23 @@
 - Keep the pass presentation-only with no new gameplay rules, balance changes, layers, cubes, or Godot work.
 - Status: implemented as the interaction, animation, and audio polish pass for the MonoGame vertical slice.
 
+## Milestone 6: Procedural Mission Generation
+
+- Generate deterministic replayable network missions from text or integer seeds.
+- Build explicit graph topology, generated node layout positions, player start, corruption starts, objective placement, and node type placement.
+- Keep procedural generation separate from `NetworkGame` so the core consumes generated missions through the same `MissionDefinition` path as authored missions.
+- Surface seed replay and new-seed controls in the active MonoGame frontend.
+- Status: implemented as the procedural replayability foundation.
+
+## Milestone 7: Tactical AI and Enemy Personalities
+
+- Replace fixed enemy spread priority with a modular tactical evaluator that scores legal corruption actions every turn.
+- Add Aggressive, Defensive, Economic, Opportunistic, and Corruption-Focused personalities using the same gameplay rules.
+- Increase difficulty through decision quality, not hidden bonuses or altered resources.
+- Report enemy source, target, primary scoring factor, and concise intent summary through core action results.
+- Visualize enemy intent in MonoGame with HUD profile text, source-to-target emphasis, and target rings.
+- Status: implemented as the first tactical opponent pass.
+
 ## Milestone 3.5: Layers
 
 - Add deeper network layers with increasing complexity.

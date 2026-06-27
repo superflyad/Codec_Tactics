@@ -41,7 +41,7 @@ var tests = new (string Name, Action Test)[]
     ("vertical slice mission wins after objective hold", VerticalSliceMissionWinsAfterObjectiveHold),
     ("vertical slice mission loses when core collapses", VerticalSliceMissionLosesWhenCoreCollapses),
     ("vertical slice mission loses when corruption captures objective", VerticalSliceMissionLosesWhenCorruptionCapturesObjective),
-    ("objective hold turns reset when objective is not secured", ObjectiveHoldTurnsResetWhenObjectiveIsNotSecured),
+    ("unsecured objective can be punished by tactical AI", UnsecuredObjectiveCanBePunishedByTacticalAi),
     ("action mode routes claim reinforce and weaken", ActionModeRoutesClaimReinforceAndWeaken),
     ("vertical slice restart is deterministic", VerticalSliceRestartIsDeterministic),
     ("invalid actions after game over do not mutate mission", InvalidActionsAfterGameOverDoNotMutateMission),
@@ -50,6 +50,12 @@ var tests = new (string Name, Action Test)[]
     ("procedural mission satisfies graph validity", ProceduralMissionSatisfiesGraphValidity),
     ("procedural mission placement follows gameplay constraints", ProceduralMissionPlacementFollowsGameplayConstraints),
     ("procedural layout is readable and complete", ProceduralLayoutIsReadableAndComplete),
+    ("tactical AI is deterministic for identical seeded missions", TacticalAiIsDeterministicForIdenticalSeededMissions),
+    ("tactical AI selects valid reachable actions", TacticalAiSelectsValidReachableActions),
+    ("tactical AI prioritizes objective pressure", TacticalAiPrioritizesObjectivePressure),
+    ("enemy personalities choose different targets", EnemyPersonalitiesChooseDifferentTargets),
+    ("difficulty changes decision quality without bonuses", DifficultyChangesDecisionQualityWithoutBonuses),
+    ("tactical AI produces stable intent summaries", TacticalAiProducesStableIntentSummaries),
 };
 
 var failed = 0;
@@ -567,7 +573,7 @@ static void VerticalSliceMissionLosesWhenCorruptionCapturesObjective()
     AssertEqual(0, game.ObjectiveHoldTurns);
 }
 
-static void ObjectiveHoldTurnsResetWhenObjectiveIsNotSecured()
+static void UnsecuredObjectiveCanBePunishedByTacticalAi()
 {
     var game = PlayToObjectiveClaim();
     AssertEqual(1, game.ObjectiveHoldTurns);
@@ -577,8 +583,10 @@ static void ObjectiveHoldTurnsResetWhenObjectiveIsNotSecured()
     var result = game.EndPlayerTurnWithResult();
 
     AssertTrue(result.Succeeded, "Expected end turn to resolve after objective is lost.");
-    AssertEqual(GameResult.InProgress, game.Result);
+    AssertEqual(GameResult.PlayerLoss, game.Result);
     AssertEqual(0, game.ObjectiveHoldTurns);
+    AssertEqual(game.ObjectiveNode, result.CorruptionTarget);
+    AssertContains("objective proximity", result.EnemyIntentSummary);
 }
 
 static void ActionModeRoutesClaimReinforceAndWeaken()
@@ -711,6 +719,102 @@ static void ProceduralLayoutIsReadableAndComplete()
     AssertTrue(crossings <= board.Links.Count / 3, $"Expected restrained edge crossings, got {crossings} for {board.Links.Count} links.");
 }
 
+static void TacticalAiIsDeterministicForIdenticalSeededMissions()
+{
+    var configuration = new GameConfiguration
+    {
+        EnemyPersonality = EnemyPersonality.CorruptionFocused,
+        EnemyDifficulty = EnemyDifficulty.Expert
+    };
+    var first = NetworkGame.CreateMission(ProceduralMissionGenerator.Generate("ai-determinism"), configuration);
+    var second = NetworkGame.CreateMission(ProceduralMissionGenerator.Generate("ai-determinism"), configuration);
+
+    var firstResult = first.EndPlayerTurnWithResult();
+    var secondResult = second.EndPlayerTurnWithResult();
+
+    AssertEqual(DescribeBoard(first.Board), DescribeBoard(second.Board));
+    AssertEqual(firstResult.CorruptionTarget, secondResult.CorruptionTarget);
+    AssertEqual(firstResult.CorruptionFocusTarget, secondResult.CorruptionFocusTarget);
+    AssertEqual(firstResult.EnemyIntentSummary, secondResult.EnemyIntentSummary);
+}
+
+static void TacticalAiSelectsValidReachableActions()
+{
+    var game = NetworkGame.CreateMission(ProceduralMissionGenerator.Generate("ai-valid-action"), new GameConfiguration
+    {
+        EnemyPersonality = EnemyPersonality.Opportunistic,
+        EnemyDifficulty = EnemyDifficulty.Hard
+    });
+
+    var result = game.EndPlayerTurnWithResult();
+    var target = result.CorruptionTarget ?? result.CorruptionFocusTarget;
+
+    AssertTrue(target.HasValue, "Expected tactical AI to choose a reachable target.");
+    AssertTrue(result.EnemyActionSource.HasValue, "Expected tactical AI to report the source of its action.");
+    var targetId = target!.Value;
+    var source = result.EnemyActionSource!.Value;
+    AssertTrue(game.Board.AreConnected(source, targetId), "Expected enemy action to use an active adjacent connection.");
+    AssertEqual(NodeOwner.Enemy, game.Board.GetNode(source).Owner);
+    AssertFalse(result.EnemyActionType == TacticalEnemyActionType.CorruptNode && game.Board.GetNode(targetId).Owner != NodeOwner.Enemy, "Expected corruption actions to produce an enemy-owned target.");
+}
+
+static void TacticalAiPrioritizesObjectivePressure()
+{
+    var game = NetworkGame.CreateMission(CreateObjectivePressureMission(), new GameConfiguration
+    {
+        EnemyPersonality = EnemyPersonality.Aggressive,
+        EnemyDifficulty = EnemyDifficulty.Expert
+    });
+
+    var decision = TacticalEnemyPlanner.SelectDecision(game.Board, game.Configuration, game.PlayerCore, game.ObjectiveNode, corruptionPressure: 1, turnNumber: 1);
+
+    AssertEqual(game.ObjectiveNode, decision.Target);
+    AssertContains("objective", decision.PrimaryFactor);
+}
+
+static void EnemyPersonalitiesChooseDifferentTargets()
+{
+    var mission = CreatePersonalityTestMission();
+    var aggressive = NetworkGame.CreateMission(mission, new GameConfiguration { EnemyPersonality = EnemyPersonality.Aggressive, EnemyDifficulty = EnemyDifficulty.Expert });
+    var defensive = NetworkGame.CreateMission(mission, new GameConfiguration { EnemyPersonality = EnemyPersonality.Defensive, EnemyDifficulty = EnemyDifficulty.Expert });
+    var economic = NetworkGame.CreateMission(mission, new GameConfiguration { EnemyPersonality = EnemyPersonality.Economic, EnemyDifficulty = EnemyDifficulty.Expert });
+
+    var aggressiveTarget = TacticalEnemyPlanner.SelectDecision(aggressive.Board, aggressive.Configuration, aggressive.PlayerCore, aggressive.ObjectiveNode, 1, 1).Target;
+    var defensiveTarget = TacticalEnemyPlanner.SelectDecision(defensive.Board, defensive.Configuration, defensive.PlayerCore, defensive.ObjectiveNode, 1, 1).Target;
+    var economicTarget = TacticalEnemyPlanner.SelectDecision(economic.Board, economic.Configuration, economic.PlayerCore, economic.ObjectiveNode, 1, 1).Target;
+
+    AssertEqual(new NodeId(1, 1), aggressiveTarget);
+    AssertEqual(new NodeId(3, 1), defensiveTarget);
+    AssertEqual(new NodeId(2, 0), economicTarget);
+}
+
+static void DifficultyChangesDecisionQualityWithoutBonuses()
+{
+    var mission = CreatePersonalityTestMission();
+    var easy = NetworkGame.CreateMission(mission, new GameConfiguration { EnemyPersonality = EnemyPersonality.Opportunistic, EnemyDifficulty = EnemyDifficulty.Easy });
+    var expert = NetworkGame.CreateMission(mission, new GameConfiguration { EnemyPersonality = EnemyPersonality.Opportunistic, EnemyDifficulty = EnemyDifficulty.Expert });
+
+    var easyDecision = TacticalEnemyPlanner.SelectDecision(easy.Board, easy.Configuration, easy.PlayerCore, easy.ObjectiveNode, 1, 1);
+    var expertDecision = TacticalEnemyPlanner.SelectDecision(expert.Board, expert.Configuration, expert.PlayerCore, expert.ObjectiveNode, 1, 1);
+
+    AssertTrue(expertDecision.Score >= easyDecision.Score, "Expected higher difficulty to select an equal or better evaluated action.");
+    AssertEqual(NetworkRules.CorruptionPressureGrowthPerTurn, easy.Configuration.CorruptionPressureGrowthPerTurn);
+    AssertEqual(NetworkRules.CorruptionPressureGrowthPerTurn, expert.Configuration.CorruptionPressureGrowthPerTurn);
+    AssertEqual(NetworkRules.StandardCorruptionResistance, easy.Configuration.StandardCorruptionResistance);
+    AssertEqual(NetworkRules.StandardCorruptionResistance, expert.Configuration.StandardCorruptionResistance);
+}
+
+static void TacticalAiProducesStableIntentSummaries()
+{
+    var game = NetworkGame.CreateDefault();
+
+    var result = game.EndPlayerTurnWithResult();
+
+    AssertTrue(result.EnemyActionType != TacticalEnemyActionType.None, "Expected tactical AI to report an action type.");
+    AssertFalse(string.IsNullOrWhiteSpace(result.EnemyPrimaryFactor), "Expected tactical AI to report the primary scoring factor.");
+    AssertContains(result.CorruptionTarget?.ToString() ?? result.CorruptionFocusTarget?.ToString() ?? string.Empty, result.EnemyIntentSummary);
+}
+
 static NetworkGame PlayToObjectiveClaim()
 {
     var game = NetworkGame.CreateVerticalSliceMission();
@@ -720,6 +824,45 @@ static NetworkGame PlayToObjectiveClaim()
     AssertTrue(game.ExecutePlayerAction(PlayerActionMode.Claim, new NodeId(3, 2)).Succeeded, "Expected objective claim to succeed from the relay anchor.");
 
     return game;
+}
+
+static MissionDefinition CreateObjectivePressureMission()
+{
+    var nodeTypes = new Dictionary<NodeId, NodeType>
+    {
+        [new NodeId(1, 0)] = NodeType.Resource
+    };
+    var board = BoardDefinition.CreateGrid(
+        3,
+        2,
+        new NodeId(0, 0),
+        new[] { new NodeId(2, 0) },
+        nodeTypes,
+        initialOwnership: new Dictionary<NodeId, NodeOwner> { [new NodeId(1, 0)] = NodeOwner.Neutral });
+
+    return new MissionDefinition("Objective Pressure", board, new NodeId(1, 0), 1, "Hold the exposed service.");
+}
+
+static MissionDefinition CreatePersonalityTestMission()
+{
+    var nodeTypes = new Dictionary<NodeId, NodeType>
+    {
+        [new NodeId(2, 0)] = NodeType.Resource,
+        [new NodeId(3, 1)] = NodeType.Firewall
+    };
+    var initialOwnership = new Dictionary<NodeId, NodeOwner>
+    {
+        [new NodeId(1, 1)] = NodeOwner.Player
+    };
+    var board = BoardDefinition.CreateGrid(
+        4,
+        3,
+        new NodeId(0, 1),
+        new[] { new NodeId(2, 1) },
+        nodeTypes,
+        initialOwnership: initialOwnership);
+
+    return new MissionDefinition("Personality Lab", board, new NodeId(3, 2), 1, "Test enemy intent.");
 }
 
 static void AssertTrue(bool condition, string message)

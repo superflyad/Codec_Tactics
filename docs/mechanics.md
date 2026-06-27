@@ -96,13 +96,30 @@ Detailed formulas and examples are documented in `docs/network-integrity.md`.
 
 Corruption pressure starts at zero. By default, each enemy/corruption turn adds one pressure, then corruption checks for one expansion target.
 
-Expansion target selection is deterministic:
+Expansion target selection is deterministic and handled by the tactical AI planner:
 
 1. Find active neighbors of enemy-owned nodes that are not already enemy-owned.
-2. Score candidates by instability, low integrity, current threat, and Firewall resistance.
-3. Pick the highest score.
-4. Resolve ties by row-major node id.
+2. Score candidates by objective proximity, Relay value, Resource value, network control, corruption opportunities, player expansion, defensive value, reachable territory, pressure efficiency, and future positioning.
+3. Weight those factors by the configured enemy personality.
+4. Select an evaluated option according to difficulty quality.
+5. Resolve ties by row-major node id.
 
 If the current pressure is at least the target node's resistance, corruption claims that node and spends pressure equal to the resistance. Standard, Resource, and Relay nodes have resistance 1. Firewall nodes have resistance 2.
 
 If the current pressure is lower than the target resistance, corruption does not spread that turn and pressure carries forward.
+
+## Tactical AI
+
+Enemy AI uses the same visible board state and gameplay rules as corruption already used. It does not receive hidden resources, extra pressure, free captures, or private map information.
+
+`GameConfiguration.EnemyPersonality` selects one of five first-pass profiles:
+
+- Aggressive: values player pressure, attacks, and forward positioning.
+- Defensive: values Firewall nodes, choke points, and protected infrastructure.
+- Economic: values Resource nodes and longer-term positioning.
+- Opportunistic: balances immediate weakness, objectives, and reachable territory.
+- CorruptionFocused: values instability, low integrity, pressure efficiency, and collapse opportunities.
+
+`GameConfiguration.EnemyDifficulty` changes decision quality. Hard and Expert select the best evaluated action; Standard and Easy may choose from near-best evaluated options. The underlying rules and resource values stay unchanged.
+
+Each enemy turn reports the selected action type, source node, target node, primary factor, score, profile, difficulty, and summary through `GameActionResult`. The active frontend uses this to show source-to-target intent, target emphasis, HUD profile text, and brief turn summaries.

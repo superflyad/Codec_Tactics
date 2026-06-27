@@ -45,6 +45,8 @@ public sealed class NetworkGame
 
     public GameActionResult LastActionResult { get; private set; } = new(true, "Player turn ready.");
 
+    public TacticalEnemyDecision LastEnemyDecision { get; private set; } = TacticalEnemyDecision.None;
+
     public static NetworkGame CreateDefault()
     {
         return Create(BoardDefinition.CreateDefaultPrototype());
@@ -256,9 +258,9 @@ public sealed class NetworkGame
             ? $" Collapse: {string.Join(", ", enemyTurn.CollapsedNodes)} fell to corruption after {Configuration.InstabilityTurnsBeforeCollapse} unstable turns."
             : string.Empty;
         var spreadMessage = enemyTurn.CorruptionTarget.HasValue
-            ? $" Corruption spread to {enemyTurn.CorruptionTarget.Value}."
+            ? $" {enemyTurn.Decision.Summary} Corruption spread to {enemyTurn.CorruptionTarget.Value}."
             : enemyTurn.CorruptionFocusTarget.HasValue
-                ? $" Corruption focused {enemyTurn.CorruptionFocusTarget.Value} but pressure was contained."
+                ? $" {enemyTurn.Decision.Summary} Pressure was contained."
                 : " Corruption pressure built but did not spread.";
         var resourceMessage = energyGenerated > 0
             ? $" Resource nodes generated {energyGenerated} energy."
@@ -271,30 +273,32 @@ public sealed class NetworkGame
             _ => string.Empty
         };
 
-        return SetLastAction(true, actionMessage + collapseMessage + spreadMessage + resourceMessage + objectiveMessage + resultMessage, energySpent, energyGenerated, enemyTurn.CorruptionTarget, enemyTurn.CorruptionFocusTarget, enemyTurn.CollapsedNodes);
+        return SetLastAction(true, actionMessage + collapseMessage + spreadMessage + resourceMessage + objectiveMessage + resultMessage, energySpent, energyGenerated, enemyTurn.CorruptionTarget, enemyTurn.CorruptionFocusTarget, enemyTurn.CollapsedNodes, enemyTurn.Decision);
     }
 
     private EnemyTurnResult ResolveEnemyTurn()
     {
         CorruptionPressure += Configuration.CorruptionPressureGrowthPerTurn;
         var collapsed = RefreshNetworkRisk(advanceInstability: true);
-        var expansionTarget = CorruptionTargetPolicy.SelectExpansionTarget(Board, Configuration);
+        var decision = TacticalEnemyPlanner.SelectDecision(Board, Configuration, PlayerCore, ObjectiveNode, CorruptionPressure, TurnNumber);
+        LastEnemyDecision = decision;
+        var expansionTarget = decision.Target;
 
         if (expansionTarget.HasValue)
         {
             var targetNode = Board.GetNode(expansionTarget.Value);
             var resistance = GetCorruptionResistance(targetNode);
-            if (targetNode.Owner == NodeOwner.Neutral && CorruptionPressure >= resistance)
+            if (decision.ActionType == TacticalEnemyActionType.CorruptNode && targetNode.Owner == NodeOwner.Neutral && CorruptionPressure >= resistance)
             {
                 targetNode.SetOwner(NodeOwner.Enemy);
                 CorruptionPressure -= resistance;
                 RefreshNetworkRisk();
-                return new EnemyTurnResult(targetNode.Id, targetNode.Id, collapsed);
+                return new EnemyTurnResult(targetNode.Id, targetNode.Id, collapsed, decision);
             }
         }
 
         RefreshNetworkRisk();
-        return new EnemyTurnResult(null, expansionTarget, collapsed);
+        return new EnemyTurnResult(null, expansionTarget, collapsed, decision);
     }
 
     private int BeginPlayerTurn()
@@ -340,9 +344,27 @@ public sealed class NetworkGame
         int energyGenerated,
         NodeId? corruptionTarget,
         NodeId? corruptionFocusTarget,
-        IReadOnlyList<NodeId> collapsedNodes)
+        IReadOnlyList<NodeId> collapsedNodes,
+        TacticalEnemyDecision? enemyDecision = null)
     {
-        LastActionResult = new GameActionResult(succeeded, message, energySpent, energyGenerated, corruptionTarget, corruptionFocusTarget, collapsedNodes, ObjectiveHoldTurns, Result);
+        enemyDecision ??= TacticalEnemyDecision.None;
+        LastActionResult = new GameActionResult(
+            succeeded,
+            message,
+            energySpent,
+            energyGenerated,
+            corruptionTarget,
+            corruptionFocusTarget,
+            collapsedNodes,
+            ObjectiveHoldTurns,
+            Result,
+            Configuration.EnemyPersonality,
+            Configuration.EnemyDifficulty,
+            enemyDecision.ActionType,
+            enemyDecision.Source,
+            enemyDecision.PrimaryFactor,
+            enemyDecision.Summary,
+            enemyDecision.Score);
         return LastActionResult;
     }
 
@@ -411,5 +433,5 @@ public sealed class NetworkGame
         return $" Objective hold: {ObjectiveHoldTurns}/{MissionDefinition.RequiredObjectiveHoldTurns}.";
     }
 
-    private sealed record EnemyTurnResult(NodeId? CorruptionTarget, NodeId? CorruptionFocusTarget, IReadOnlyList<NodeId> CollapsedNodes);
+    private sealed record EnemyTurnResult(NodeId? CorruptionTarget, NodeId? CorruptionFocusTarget, IReadOnlyList<NodeId> CollapsedNodes, TacticalEnemyDecision Decision);
 }

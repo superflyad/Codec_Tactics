@@ -82,7 +82,7 @@ public class Game1 : Game
     private MouseState _previousMouse;
     private KeyboardState _previousKeyboard;
     private ProceduralSeed _activeSeed = ProceduralSeed.FromText("codec-milestone-6");
-    private NetworkGame _game = NetworkGame.CreateMission(ProceduralMissionGenerator.Generate("codec-milestone-6"));
+    private NetworkGame _game = CreateMissionGame(ProceduralSeed.FromText("codec-milestone-6"));
     private PlayerActionMode _selectedAction = PlayerActionMode.Claim;
     private string _status = "Mission ready. Trace the generated network.";
     private string _invalidReason = string.Empty;
@@ -223,6 +223,8 @@ public class Game1 : Game
             DrawConnection(connection);
         }
 
+        DrawEnemyIntent();
+
         foreach (var node in _game.Board.Nodes.OrderBy(node => GetNodeWorldPosition(node.Id).Y))
         {
             DrawNode(node);
@@ -327,6 +329,11 @@ public class Game1 : Game
         {
             DrawCircleOutline(center, radius + 26f + pulse * 8f, ObjectiveColor, 4);
         }
+        else if (IsEnemyIntentTarget(node.Id))
+        {
+            var intentColor = _game.LastActionResult.CorruptionTarget == node.Id ? LossColor : WarningColor;
+            DrawCircleOutline(center, radius + 25f + pulse * 7f, intentColor, 4);
+        }
         else if (node.IsUnstable)
         {
             DrawCircleOutline(center, radius + 23f + pulse * 8f, WarningColor, 4);
@@ -353,6 +360,25 @@ public class Game1 : Game
         {
             DrawCircleOutline(center, radius + 37f + visual.HoverFlash * 7f, AccentColor, 3);
         }
+    }
+
+    private void DrawEnemyIntent()
+    {
+        var result = _game.LastActionResult;
+        var target = result.CorruptionTarget ?? result.CorruptionFocusTarget;
+        if (!result.EnemyActionSource.HasValue || !target.HasValue)
+        {
+            return;
+        }
+
+        var start = WorldToScreen(GetNodeWorldPosition(result.EnemyActionSource.Value));
+        var end = WorldToScreen(GetNodeWorldPosition(target.Value));
+        var color = result.CorruptionTarget.HasValue ? new XnaColor(255, 105, 124, 210) : new XnaColor(255, 174, 88, 190);
+        var pulse = GetPulse(4.8f, target.Value.X * 0.17f + target.Value.Y * 0.23f);
+
+        DrawLine(start, end, new XnaColor(7, 10, 15, 220), Math.Max(7, (int)(11 * _zoom)));
+        DrawLine(start, end, color, Math.Max(3, (int)(5 * _zoom)));
+        DrawCircleOutline(end, (54f + pulse * 12f) * _zoom, color, 3);
     }
 
     private void DrawNodeSilhouette(NodeState node, Vector2 center, float radius, XnaColor ownerColor, XnaColor typeColor, bool isObjective)
@@ -472,6 +498,9 @@ public class Game1 : Game
 
         DrawResourceStrip(x, y, hud.Width - TextPadding * 2);
         y += 54;
+        DrawText($"{_game.Configuration.EnemyPersonality} AI", x, y, 14, WarningColor);
+        DrawText(_game.Configuration.EnemyDifficulty.ToString(), x + 150, y, 13, MutedTextColor);
+        y += 24;
         DrawObjectiveProgress(x, y, hud.Width - TextPadding * 2);
         y += 45;
 
@@ -695,7 +724,7 @@ public class Game1 : Game
     private void StartMission(ProceduralSeed seed, string status)
     {
         _activeSeed = seed;
-        _game = NetworkGame.CreateMission(ProceduralMissionGenerator.Generate(seed));
+        _game = CreateMissionGame(seed);
         _selectedAction = PlayerActionMode.Claim;
         _invalidReason = string.Empty;
         _status = $"{status} Seed {_activeSeed.Text}.";
@@ -706,6 +735,37 @@ public class Game1 : Game
         _nodeVisuals.Clear();
         _visualEffects.Clear();
         _audio.Play(AudioCue.Reset, 0.6f);
+    }
+
+    private static NetworkGame CreateMissionGame(ProceduralSeed seed)
+    {
+        var mission = ProceduralMissionGenerator.Generate(seed);
+        var configuration = new GameConfiguration
+        {
+            EnemyPersonality = SelectPersonality(seed),
+            EnemyDifficulty = EnemyDifficulty.Hard
+        };
+
+        return NetworkGame.CreateMission(mission, configuration);
+    }
+
+    private static EnemyPersonality SelectPersonality(ProceduralSeed seed)
+    {
+        var personalities = new[]
+        {
+            EnemyPersonality.Aggressive,
+            EnemyPersonality.Defensive,
+            EnemyPersonality.Economic,
+            EnemyPersonality.Opportunistic,
+            EnemyPersonality.CorruptionFocused
+        };
+        var hash = 17;
+        foreach (var character in seed.Text)
+        {
+            hash = hash * 31 + character;
+        }
+
+        return personalities[Math.Abs(hash) % personalities.Length];
     }
 
     private void ResolveAction(Func<GameActionResult> action, NodeId? actedNode = null)
@@ -1181,6 +1241,11 @@ public class Game1 : Game
             parts.Add($"Collapse: {string.Join(", ", result.CollapsedNodes)}.");
         }
 
+        if (!string.IsNullOrWhiteSpace(result.EnemyPrimaryFactor))
+        {
+            parts.Add($"Intent: {result.EnemyPrimaryFactor}.");
+        }
+
         parts.Add($"Objective {_game.ObjectiveHoldTurns}/{_game.RequiredObjectiveHoldTurns}.");
 
         if (result.EnergyGenerated > 0)
@@ -1225,10 +1290,16 @@ public class Game1 : Game
 
         if (result.CorruptionTarget.HasValue)
         {
-            return firstSentence + $" Corruption -> {result.CorruptionTarget.Value}.";
+            return firstSentence + $" {result.EnemyPersonality} -> {result.CorruptionTarget.Value}.";
         }
 
         return firstSentence;
+    }
+
+    private bool IsEnemyIntentTarget(NodeId nodeId)
+    {
+        var result = _game.LastActionResult;
+        return result.CorruptionTarget == nodeId || result.CorruptionFocusTarget == nodeId;
     }
 
     private float GetPulse(float speed, float offset)
