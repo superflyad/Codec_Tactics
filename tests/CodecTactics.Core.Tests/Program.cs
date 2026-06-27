@@ -45,6 +45,11 @@ var tests = new (string Name, Action Test)[]
     ("action mode routes claim reinforce and weaken", ActionModeRoutesClaimReinforceAndWeaken),
     ("vertical slice restart is deterministic", VerticalSliceRestartIsDeterministic),
     ("invalid actions after game over do not mutate mission", InvalidActionsAfterGameOverDoNotMutateMission),
+    ("procedural mission generation is deterministic", ProceduralMissionGenerationIsDeterministic),
+    ("procedural mission seeds create different layouts", ProceduralMissionSeedsCreateDifferentLayouts),
+    ("procedural mission satisfies graph validity", ProceduralMissionSatisfiesGraphValidity),
+    ("procedural mission placement follows gameplay constraints", ProceduralMissionPlacementFollowsGameplayConstraints),
+    ("procedural layout is readable and complete", ProceduralLayoutIsReadableAndComplete),
 };
 
 var failed = 0;
@@ -631,6 +636,81 @@ static void InvalidActionsAfterGameOverDoNotMutateMission()
     AssertEqual(energyBefore, game.PlayerEnergy);
 }
 
+static void ProceduralMissionGenerationIsDeterministic()
+{
+    var first = ProceduralMissionGenerator.Generate("regression-seed-6");
+    var second = ProceduralMissionGenerator.Generate("regression-seed-6");
+
+    AssertEqual(DescribeDefinition(first.BoardDefinition), DescribeDefinition(second.BoardDefinition));
+    AssertEqual(first.ObjectiveNode, second.ObjectiveNode);
+    AssertEqual(first.ObjectiveText, second.ObjectiveText);
+    AssertEqual("regression-seed-6", first.BoardDefinition.Metadata["seedText"]);
+}
+
+static void ProceduralMissionSeedsCreateDifferentLayouts()
+{
+    var first = ProceduralMissionGenerator.Generate("alpha-network");
+    var second = ProceduralMissionGenerator.Generate("beta-network");
+
+    AssertFalse(DescribeDefinition(first.BoardDefinition) == DescribeDefinition(second.BoardDefinition), "Expected different seeds to produce different mission topology or layout.");
+}
+
+static void ProceduralMissionSatisfiesGraphValidity()
+{
+    var settings = ProceduralMissionSettings.Default with
+    {
+        NodeCount = 22,
+        ObjectiveDistance = 6,
+        GraphDensity = 0.34d,
+        MaxBranchingFactor = 4
+    };
+    var mission = ProceduralMissionGenerator.Generate(20260627, settings);
+    var board = mission.BoardDefinition;
+
+    AssertEqual(22, board.Nodes.Count);
+    AssertTrue(board.Links.Count >= board.Nodes.Count - 1, "Expected enough links for a connected graph.");
+    AssertEqual(board.Nodes.Count, GetReachableNodes(board, board.PlayerStart).Count);
+    AssertTrue(GetShortestPathLength(board, board.PlayerStart, mission.ObjectiveNode) >= 3, "Expected objective to require traversal.");
+    AssertTrue(board.Nodes.All(node => GetDegree(board, node) > 0), "Expected no isolated nodes.");
+    AssertTrue(board.Nodes.Average(node => GetDegree(board, node)) <= 5.2d, "Expected a readable branching factor.");
+}
+
+static void ProceduralMissionPlacementFollowsGameplayConstraints()
+{
+    var mission = ProceduralMissionGenerator.Generate("placement-check");
+    var game = NetworkGame.CreateMission(mission);
+
+    AssertEqual(NodeOwner.Player, game.Board.GetNode(game.PlayerCore).Owner);
+    AssertEqual(NodeOwner.Neutral, game.Board.GetNode(mission.ObjectiveNode).Owner);
+    AssertTrue(mission.BoardDefinition.CorruptionStarts.All(node => game.Board.GetNode(node).Owner == NodeOwner.Enemy), "Expected all corruption starts to initialize as enemy-owned.");
+    AssertFalse(mission.BoardDefinition.CorruptionStarts.Contains(game.PlayerCore), "Expected corruption to start away from player core.");
+    AssertFalse(mission.BoardDefinition.CorruptionStarts.Contains(mission.ObjectiveNode), "Expected corruption to start away from the objective.");
+    AssertTrue(mission.BoardDefinition.ResourceNodes.Count >= 1, "Expected at least one generated Resource.");
+    AssertTrue(mission.BoardDefinition.RelayNodes.Count >= 1, "Expected at least one generated Relay.");
+    AssertTrue(mission.BoardDefinition.FirewallNodes.Count >= 1, "Expected at least one generated Firewall.");
+    AssertTrue(game.PlayerEnergy >= NetworkRules.InitialPlayerEnergy, "Expected procedural starting energy to preserve existing action pacing.");
+}
+
+static void ProceduralLayoutIsReadableAndComplete()
+{
+    var mission = ProceduralMissionGenerator.Generate("layout-check");
+    var board = mission.BoardDefinition;
+
+    AssertEqual(board.Nodes.Count, board.Layout.Count);
+    foreach (var node in board.Nodes)
+    {
+        AssertTrue(board.Layout.ContainsKey(node), $"Expected layout position for {node}.");
+    }
+
+    var closestDistance = board.Nodes
+        .SelectMany(first => board.Nodes.Where(second => first.CompareTo(second) < 0).Select(second => GetLayoutDistance(board.Layout[first], board.Layout[second])))
+        .Min();
+    AssertTrue(closestDistance >= 72f, "Expected generated nodes to be visibly separated.");
+
+    var crossings = CountEdgeCrossings(board);
+    AssertTrue(crossings <= board.Links.Count / 3, $"Expected restrained edge crossings, got {crossings} for {board.Links.Count} links.");
+}
+
 static NetworkGame PlayToObjectiveClaim()
 {
     var game = NetworkGame.CreateVerticalSliceMission();
@@ -663,4 +743,119 @@ static string DescribeBoard(NetworkBoard board)
     return string.Join("|", board.Nodes
         .OrderBy(node => node.Id)
         .Select(node => $"{node.Id}:{node.Owner}:{node.Type}:{node.Integrity}:{node.Threat}"));
+}
+
+static string DescribeDefinition(BoardDefinition definition)
+{
+    var nodes = string.Join(",", definition.Nodes);
+    var links = string.Join(",", definition.Links.Select(link => $"{link.First}-{link.Second}"));
+    var types = string.Join(",", definition.NodeTypes.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}:{pair.Value}"));
+    var owners = string.Join(",", definition.InitialOwnership.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}:{pair.Value}"));
+    var layout = string.Join(",", definition.Layout.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}:{pair.Value.X:0.00}:{pair.Value.Y:0.00}"));
+    return $"{nodes}|{links}|{types}|{owners}|{definition.PlayerStart}|{string.Join(",", definition.CorruptionStarts)}|{layout}";
+}
+
+static IReadOnlySet<NodeId> GetReachableNodes(BoardDefinition definition, NodeId start)
+{
+    var visited = new HashSet<NodeId> { start };
+    var frontier = new Queue<NodeId>();
+    frontier.Enqueue(start);
+
+    while (frontier.Count > 0)
+    {
+        var current = frontier.Dequeue();
+        foreach (var adjacent in GetAdjacent(definition, current))
+        {
+            if (visited.Add(adjacent))
+            {
+                frontier.Enqueue(adjacent);
+            }
+        }
+    }
+
+    return visited;
+}
+
+static int GetShortestPathLength(BoardDefinition definition, NodeId start, NodeId target)
+{
+    var distances = new Dictionary<NodeId, int> { [start] = 0 };
+    var frontier = new Queue<NodeId>();
+    frontier.Enqueue(start);
+
+    while (frontier.Count > 0)
+    {
+        var current = frontier.Dequeue();
+        if (current.Equals(target))
+        {
+            return distances[current];
+        }
+
+        foreach (var adjacent in GetAdjacent(definition, current))
+        {
+            if (distances.ContainsKey(adjacent))
+            {
+                continue;
+            }
+
+            distances[adjacent] = distances[current] + 1;
+            frontier.Enqueue(adjacent);
+        }
+    }
+
+    return -1;
+}
+
+static IReadOnlyList<NodeId> GetAdjacent(BoardDefinition definition, NodeId node)
+{
+    return definition.Links
+        .Where(link => link.Contains(node))
+        .Select(link => link.First.Equals(node) ? link.Second : link.First)
+        .OrderBy(adjacent => adjacent)
+        .ToList();
+}
+
+static int GetDegree(BoardDefinition definition, NodeId node)
+{
+    return definition.Links.Count(link => link.Contains(node));
+}
+
+static float GetLayoutDistance(NetworkNodePosition first, NetworkNodePosition second)
+{
+    var x = first.X - second.X;
+    var y = first.Y - second.Y;
+    return MathF.Sqrt(x * x + y * y);
+}
+
+static int CountEdgeCrossings(BoardDefinition definition)
+{
+    var crossings = 0;
+    for (var i = 0; i < definition.Links.Count; i++)
+    {
+        for (var j = i + 1; j < definition.Links.Count; j++)
+        {
+            var first = definition.Links[i];
+            var second = definition.Links[j];
+            if (first.Contains(second.First) || first.Contains(second.Second))
+            {
+                continue;
+            }
+
+            if (SegmentsCross(definition.Layout[first.First], definition.Layout[first.Second], definition.Layout[second.First], definition.Layout[second.Second]))
+            {
+                crossings++;
+            }
+        }
+    }
+
+    return crossings;
+}
+
+static bool SegmentsCross(NetworkNodePosition a, NetworkNodePosition b, NetworkNodePosition c, NetworkNodePosition d)
+{
+    return Direction(a, c, d) != Direction(b, c, d) && Direction(a, b, c) != Direction(a, b, d);
+}
+
+static bool Direction(NetworkNodePosition a, NetworkNodePosition b, NetworkNodePosition c)
+{
+    return ((c.X - a.X) * (b.Y - a.Y) - (b.X - a.X) * (c.Y - a.Y)) > 0;
 }

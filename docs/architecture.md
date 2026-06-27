@@ -14,7 +14,14 @@ Expected concepts:
 - Reachability and exposure calculations.
 - Deterministic state transitions for tests.
 
-Milestone 1 implements this as `NetworkBoard`, a fixed-size orthogonal grid graph with stable `NodeId` coordinates and explicit `ConnectionState` links.
+Milestone 1 implemented this as `NetworkBoard`, a fixed-size orthogonal grid graph with stable `NodeId` coordinates and explicit `ConnectionState` links. Milestone 6 keeps the same gameplay graph model but moves board definitions to explicit `NetworkLink` topology data so generated missions are no longer required to be full rectangular grids.
+
+Procedural generation is separated from gameplay:
+
+- `ProceduralMissionGenerator` creates a deterministic mission definition from a seed and `ProceduralMissionSettings`.
+- `ProceduralNetworkLayout` calculates visual positions for the generated graph.
+- `NetworkGame` consumes a `MissionDefinition` and remains responsible for turn flow, action validation, corruption, and objective evaluation.
+- MonoGame renders the current board and uses `BoardDefinition.Layout` when available.
 
 ## Node Model
 

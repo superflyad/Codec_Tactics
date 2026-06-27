@@ -4,7 +4,7 @@ Codec_Tactics is an early-stage C# MonoGame project for a turn-based network tac
 
 The player builds a growing 2D network. Each expansion opens useful paths, but poor choices can expose routes for enemy corruption. Future milestones may explore layers and cube-inspired visualization, but the active playable mission intentionally keeps gameplay flat and focused.
 
-This repository is currently at Milestone 5: interaction, animation, and audio. It contains a small deterministic core loop in pure C# plus a MonoGame frontend that renders the authored mission as a responsive living digital network rather than a grid-first debug board. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and new mechanics.
+This repository is currently at Milestone 6: procedural network generation. It contains a deterministic core loop in pure C# plus a MonoGame frontend that renders generated missions as responsive living digital networks rather than grid-first debug boards. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and new combat mechanics.
 
 ## Current Foundation
 
@@ -12,11 +12,11 @@ This repository is currently at Milestone 5: interaction, animation, and audio. 
 - Console-based automated test runner with no third-party test dependency
 - Validation script for repeatable local checks
 - Documentation for architecture, milestones, contribution workflow, and Codex usage
-- Pure C# 2D network prototype with configurable board definitions, adjacent connections, ownership, node types, energy costs, network integrity, threat, instability, deterministic corruption pressure, collapse, turn counter, and placeholder outcomes
-- `BoardDefinition` and `GameConfiguration` models that keep the default 4x4 prototype behavior data-driven and prepare the core for later layers and cube faces
-- Network-first MonoGame presentation that draws the authored mission through deterministic topology positions, animated packet flow, relay amplification pulses, smooth camera zoom/pan/recenter, silhouette/icon node identities, corruption overlays, event pulse rings, hover/selection/capture transitions, concise HUD indicators, hover details, highlights, mission log, and win/loss banner while routing input through `CodecTactics.Core`
+- Pure C# 2D network prototype with configurable board definitions, explicit graph links, layout positions, ownership, node types, energy costs, network integrity, threat, instability, deterministic corruption pressure, collapse, turn counter, and objective outcomes
+- `BoardDefinition`, `GameConfiguration`, `ProceduralMissionSettings`, and deterministic procedural generation models that keep existing mechanics data-driven and prepare the core for later layers and cube faces
+- Network-first MonoGame presentation that draws generated missions through deterministic topology positions, animated packet flow, relay amplification pulses, smooth camera zoom/pan/recenter, silhouette/icon node identities, corruption overlays, event pulse rings, hover/selection/capture transitions, concise HUD indicators, hover details, highlights, mission log, seed replay/new-seed controls, and win/loss banner while routing input through `CodecTactics.Core`
 - Centralized MonoGame `AudioService` with committed synthesized digital WAV assets for hover, selection, confirmation, invalid actions, capture, reinforcement, weakening, corruption, objective progress, victory, defeat, reset, and ambient network hum
-- One authored vertical-slice mission with a fixed board, objective hold win condition, loss states, player feedback, and restartable game loop
+- Deterministic procedural missions with generated graph topology, mission placement, objective hold win condition, loss states, player feedback, replayable seeds, and a restartable game loop
 - Legacy Godot files remain for reference only and are not part of validation or the active frontend workflow
 
 ## Requirements
@@ -58,7 +58,8 @@ The current MonoGame input surface supports both keyboard shortcuts and visible 
 2 = Reinforce
 3 = Weaken
 Space = End Turn
-R = Restart Mission
+R = Replay current seed
+N = New random seed
 C = Recenter camera
 Esc = Exit
 Left click = apply the selected action to a node
@@ -68,15 +69,15 @@ Right or middle mouse drag = smooth pan
 Mouse hover = inspect node owner, type, integrity, threat, selected-action cost, expected result, blocked reason, instability, and danger reason
 ```
 
-The app launches the vertical-slice mission, `Secure the Uplink`.
+The app launches a generated procedural mission.
 
-- Start: player core at `(0,2)`.
-- Corruption start: `(4,4)`.
-- Objective: secure the Firewall node at `(3,2)` for 2 turns.
+- Start: generated player core.
+- Corruption start: generated far-side corruption location.
+- Objective: generated Firewall objective, held for 2 turns by default.
 - Win: claim and hold the objective for the required hold turns.
 - Lose: the player core collapses or corruption captures the objective.
 
-Use the action buttons or number keys to choose Claim, Reinforce, or Weaken. The selected action is highlighted in the HUD, valid targets pulse on the network, and invalid targets are visually suppressed while the hover tooltip explains the block. The objective has a pulsing gold ring, unstable nodes pulse orange, corrupted nodes carry a red disruption mark, and the selected node receives a white ring. Click a node to apply the selected action, or use End Turn to let corruption act without spending energy. Hover nodes to inspect ownership, type, integrity, threat, cost, expected action result, blocked reason, instability, and danger reason. The board uses hover/selection easing, capture and corruption shockwaves, relay packet amplification, invalid-action shake, objective pulses, screen-level mission-result emphasis, and synthesized digital audio cues for immediate feedback. Restart Mission resets the authored board deterministically.
+Use the action buttons or number keys to choose Claim, Reinforce, or Weaken. The selected action is highlighted in the HUD, valid targets pulse on the network, and invalid targets are visually suppressed while the hover tooltip explains the block. The objective has a pulsing gold ring, unstable nodes pulse orange, corrupted nodes carry a red disruption mark, and the selected node receives a white ring. Click a node to apply the selected action, or use End Turn to let corruption act without spending energy. Hover nodes to inspect ownership, type, integrity, threat, cost, expected action result, blocked reason, instability, and danger reason. The board uses hover/selection easing, capture and corruption shockwaves, relay packet amplification, invalid-action shake, objective pulses, screen-level mission-result emphasis, and synthesized digital audio cues for immediate feedback. Replay resets the current seed deterministically; New Seed rolls a different generated network.
 
 ## Validate
 
@@ -102,10 +103,12 @@ Codec_Tactics.csproj          Legacy Godot C# project
 Codec_Tactics.sln             .NET validation solution
 ```
 
-## Milestone 3.75 Mechanics
+## Milestone 6 Mechanics
 
 - The default prototype board is a 4x4 orthogonal node grid defined by `BoardDefinition.CreateDefaultPrototype()`.
-- The core engine can initialize alternate board widths, heights, starting positions, and node type placement from `BoardDefinition`.
+- The core engine can initialize authored grids or explicit generated graph topologies from `BoardDefinition`.
+- `ProceduralMissionGenerator` creates deterministic missions from integer or text seeds using configurable node count, graph density, branching, corruption start count, objective distance, node type frequencies, starting energy, and objective hold settings.
+- Generated missions include explicit links, generated layout positions, seed metadata, player start, corruption starts, objective placement, Resource placement, Relay placement, and Firewall placement.
 - Default costs, corruption growth, integrity values, threat values, and collapse timing are provided by `GameConfiguration`.
 - Nodes can be neutral, player-owned, or enemy-owned.
 - The player starts at `(0,0)` and enemy corruption starts at `(3,3)`.
@@ -119,12 +122,12 @@ Codec_Tactics.sln             .NET validation solution
 - Corruption pressure increases by 1 each enemy turn and expands deterministically by prioritizing unstable, weak, and exposed targets when pressure meets the target node's resistance.
 - Firewall nodes require 2 corruption pressure before corruption can claim them.
 - Player actions include claiming reachable neutral nodes, reinforcing owned nodes, weakening reachable enemy connections, and ending the turn.
-- The vertical-slice mission uses `MissionDefinition.CreateVerticalSlice()` with a fixed 5x5 board and objective-hold win/loss rules.
+- Procedural missions use the same objective-hold win/loss rules as the vertical-slice mission.
 - Objective hold progress increases after successful player actions or end turns that leave the objective player-owned after corruption resolves.
 - The mission ends in loss if the player core is no longer player-owned or the objective becomes corrupted.
 - See `docs/network-integrity.md` for formulas, examples, collapse behavior, and strategy implications.
 - See `docs/board-definition.md` for board definition and configuration details.
-- See `docs/playable-vertical-slice.md` for the current mission route, feedback, tests, and limitations.
+- See `docs/playable-vertical-slice.md` for the authored regression mission route, feedback, tests, and limitations.
 
 ## Milestone 1.5 Visible Prototype
 
@@ -136,7 +139,7 @@ Codec_Tactics.sln             .NET validation solution
 - Invalid clicks do not mutate core state and update the HUD status text.
 - End Turn uses the real core corruption turn.
 - The HUD shows selected action, turn, energy, objective progress, corruption pressure, result feedback, invalid move reasons, and recent action history.
-- Restart Mission starts a fresh deterministic copy of the authored mission.
+- Replay starts a fresh deterministic copy of the active seed. New Seed creates a different generated mission.
 - Milestone 4 is presentation-only: it establishes Codec_Tactics' network-first visual identity without adding layers, cube visualization, Godot work, or new mechanics.
 - Milestone 5 is presentation-only: it adds responsive interaction animation, event visual effects, living-network motion, and centralized real audio assets without changing core gameplay rules or mission balance.
 
@@ -144,7 +147,7 @@ Codec_Tactics.sln             .NET validation solution
 
 - MonoGame visuals and audio now establish the intended responsive network feel, but the visuals are still code-drawn prototype art rather than final production assets.
 - Legacy Godot files remain in the repository but are not active workflow targets.
-- The playable slice is still one authored 5x5 scenario.
+- Procedural generation is still a 2D layered graph foundation; campaign progression and saved seed history are not implemented yet.
 - Network integrity and threat formulas are prototype balance values.
 - Alternate board definitions are engine-supported but not yet balanced scenarios.
 - No layers, cube visualization, advanced AI, save/load, broader balancing, final art, or production UI.

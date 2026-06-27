@@ -81,9 +81,10 @@ public class Game1 : Game
     private Texture2D _pixel = default!;
     private MouseState _previousMouse;
     private KeyboardState _previousKeyboard;
-    private NetworkGame _game = NetworkGame.CreateVerticalSliceMission();
+    private ProceduralSeed _activeSeed = ProceduralSeed.FromText("codec-milestone-6");
+    private NetworkGame _game = NetworkGame.CreateMission(ProceduralMissionGenerator.Generate("codec-milestone-6"));
     private PlayerActionMode _selectedAction = PlayerActionMode.Claim;
-    private string _status = "Mission ready. Expand toward the uplink.";
+    private string _status = "Mission ready. Trace the generated network.";
     private string _invalidReason = string.Empty;
     private NodeState _hoveredNode;
     private NodeId? _lastHoveredNodeId;
@@ -107,7 +108,7 @@ public class Game1 : Game
     {
         Window.Title = "Codec_Tactics";
         RecenterCamera(immediate: true);
-        Log("Reach and hold the uplink.");
+        Log($"Seed {_activeSeed.Text} loaded.");
         base.Initialize();
     }
 
@@ -176,6 +177,10 @@ public class Game1 : Game
         else if (WasPressed(keyboard, Keys.R))
         {
             RestartMission();
+        }
+        else if (WasPressed(keyboard, Keys.N))
+        {
+            StartNewMission();
         }
         else if (WasPressed(keyboard, Keys.C))
         {
@@ -458,9 +463,12 @@ public class Game1 : Game
 
         var x = hud.X + TextPadding;
         var y = hud.Y + TextPadding;
-        DrawText("Uplink", x, y, 22, TextColor);
+        DrawText("Trace", x, y, 22, TextColor);
         DrawText($"Turn {_game.TurnNumber}", hud.Right - 84, y + 4, 15, MutedTextColor);
         y += 36;
+
+        DrawText($"Seed {_activeSeed.Text}", x, y, 13, MutedTextColor, hud.Width - TextPadding * 2);
+        y += EstimateWrappedHeight($"Seed {_activeSeed.Text}", hud.Width - TextPadding * 2, 13) + 9;
 
         DrawResourceStrip(x, y, hud.Width - TextPadding * 2);
         y += 54;
@@ -472,7 +480,8 @@ public class Game1 : Game
         y = DrawActionButton(x, y + 7, "2", "Reinforce", PlayerActionMode.Reinforce, AccentColor);
         y = DrawActionButton(x, y + 7, "3", "Weaken", PlayerActionMode.Weaken, WarningColor);
         y = DrawCommandButton(x, y + 12, "Space", "End", ButtonAction.EndTurn);
-        y = DrawCommandButton(x, y + 7, "R", "Reset", ButtonAction.Restart);
+        y = DrawCommandButton(x, y + 7, "R", "Replay", ButtonAction.Restart);
+        y = DrawCommandButton(x, y + 7, "N", "New Seed", ButtonAction.NewMission);
         y += 18;
 
         DrawText("Signal", x, y, 16, TextColor);
@@ -574,7 +583,7 @@ public class Game1 : Game
         Fill(bounds, isWin ? new XnaColor(20, 86, 54, 235) : new XnaColor(98, 28, 42, 235));
         DrawRectangle(bounds, isWin ? WinColor : LossColor, 4);
         DrawCenteredText(isWin ? "MISSION COMPLETE" : "MISSION FAILED", bounds.X, bounds.Y + 16, bounds.Width, 28, 24, TextColor);
-        DrawCenteredText("R resets the network.", bounds.X, bounds.Y + 54, bounds.Width, 18, 14, TextColor);
+        DrawCenteredText("R replays seed. N rolls a new network.", bounds.X, bounds.Y + 54, bounds.Width, 18, 14, TextColor);
     }
 
     private void HandleClick(XnaPoint mousePosition)
@@ -597,6 +606,10 @@ public class Game1 : Game
             else if (button.Action == ButtonAction.Restart)
             {
                 RestartMission();
+            }
+            else if (button.Action == ButtonAction.NewMission)
+            {
+                StartNewMission();
             }
 
             return;
@@ -671,14 +684,25 @@ public class Game1 : Game
 
     private void RestartMission()
     {
-        _game = NetworkGame.CreateVerticalSliceMission();
+        StartMission(_activeSeed, "Mission replayed.");
+    }
+
+    private void StartNewMission()
+    {
+        StartMission(ProceduralSeed.CreateRandom(), "New procedural trace loaded.");
+    }
+
+    private void StartMission(ProceduralSeed seed, string status)
+    {
+        _activeSeed = seed;
+        _game = NetworkGame.CreateMission(ProceduralMissionGenerator.Generate(seed));
         _selectedAction = PlayerActionMode.Claim;
         _invalidReason = string.Empty;
-        _status = "Mission reset. Expand toward the uplink.";
+        _status = $"{status} Seed {_activeSeed.Text}.";
         _selectedNodeId = null;
         _actionLog.Clear();
         RecenterCamera(immediate: false);
-        Log("Network reset.");
+        Log($"Seed {_activeSeed.Text} ready.");
         _nodeVisuals.Clear();
         _visualEffects.Clear();
         _audio.Play(AudioCue.Reset, 0.6f);
@@ -998,6 +1022,11 @@ public class Game1 : Game
 
     private Vector2 GetNodeWorldPosition(NodeId nodeId)
     {
+        if (_game.BoardDefinition.Layout.TryGetValue(nodeId, out var generatedPosition))
+        {
+            return new Vector2(generatedPosition.X, generatedPosition.Y);
+        }
+
         if (VerticalSliceTopology.TryGetValue(nodeId, out var position))
         {
             return position;
@@ -1483,6 +1512,7 @@ public class Game1 : Game
     {
         SelectAction,
         EndTurn,
-        Restart
+        Restart,
+        NewMission
     }
 }

@@ -12,6 +12,8 @@ Current fields:
 
 - `Width` and `Height`: rectangular board dimensions.
 - `Nodes`: deterministic node layout in row-major order.
+- `Links`: explicit graph links between nodes.
+- `Layout`: optional visual positions for renderers.
 - `NodeTypes`: authored node type placement for Standard, Resource, Relay, and Firewall nodes.
 - `InitialOwnership`: initial Neutral, Player, or Enemy ownership assignments.
 - `PlayerStart`: the player core used by integrity distance checks.
@@ -47,9 +49,24 @@ Configurable groups:
 Board initialization remains deterministic:
 
 - Nodes are ordered by `NodeId`.
-- Connections are generated from the board dimensions in a fixed horizontal-then-vertical pattern.
+- Connections are stored as explicit `NetworkLink` values. Grid boards still generate links from dimensions in a fixed horizontal-then-vertical pattern.
 - Corruption starts are ordered by `NodeId`.
 - Corruption targeting still uses deterministic priority and row-major tie breaks.
+
+## Procedural Topology
+
+Milestone 6 adds procedural topology without changing combat, corruption, energy, or objective rules.
+
+`BoardDefinition.CreateTopology()` accepts explicit nodes, links, ownership, node types, and layout positions. `ProceduralMissionGenerator` uses that path to create connected layered infrastructure graphs with deterministic seed metadata:
+
+- `seed`
+- `seedText`
+- `nodeCount`
+- `edgeCount`
+- `scenario=procedural-network`
+- `topology=layered-infrastructure-graph`
+
+Renderers should use `BoardDefinition.Layout` when present. Gameplay systems should use `BoardDefinition.Links` and must not infer rules from visual positions.
 
 ## Future Layers
 

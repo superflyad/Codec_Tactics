@@ -47,22 +47,7 @@ public sealed class NetworkBoard
             nodes.Add(node);
         }
 
-        for (var y = 0; y < definition.Height; y++)
-        {
-            for (var x = 0; x < definition.Width; x++)
-            {
-                var nodeId = new NodeId(x, y);
-                if (x > 0)
-                {
-                    connections.Add(new ConnectionState(new NodeId(x - 1, y), nodeId));
-                }
-
-                if (y > 0)
-                {
-                    connections.Add(new ConnectionState(new NodeId(x, y - 1), nodeId));
-                }
-            }
-        }
+        connections.AddRange(definition.Links.Select(link => new ConnectionState(link.First, link.Second)));
 
         return new NetworkBoard(definition.Width, definition.Height, nodes, connections);
     }

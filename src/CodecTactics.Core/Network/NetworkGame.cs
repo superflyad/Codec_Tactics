@@ -69,6 +69,16 @@ public sealed class NetworkGame
         return CreateMission(MissionDefinition.CreateVerticalSlice());
     }
 
+    public static NetworkGame CreateProceduralMission(int seed, ProceduralMissionSettings? settings = null)
+    {
+        return CreateMission(ProceduralMissionGenerator.Generate(seed, settings));
+    }
+
+    public static NetworkGame CreateProceduralMission(string seed, ProceduralMissionSettings? settings = null)
+    {
+        return CreateMission(ProceduralMissionGenerator.Generate(seed, settings));
+    }
+
     public IReadOnlyList<NodeId> RefreshNetworkRisk(bool advanceInstability = false)
     {
         return NetworkIntegrityEvaluator.Evaluate(Board, PlayerCore, CorruptionPressure, Configuration, advanceInstability);
