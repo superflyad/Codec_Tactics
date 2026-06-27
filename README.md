@@ -2,9 +2,9 @@
 
 Codec_Tactics is an early-stage C# MonoGame project for a turn-based network tactics game.
 
-The player builds a growing network across layered, cube-inspired spaces. Each expansion opens useful paths, but poor choices can expose routes for enemy corruption. Complexity increases as the player descends into deeper network layers.
+The player builds a growing 2D network. Each expansion opens useful paths, but poor choices can expose routes for enemy corruption. Future milestones may explore layers and cube-inspired visualization, but the active playable mission intentionally stays flat and focused.
 
-This repository is currently at Milestone 3.75: playable vertical slice mission. It contains a small deterministic core loop in pure C# plus a minimal MonoGame frontend that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and polish.
+This repository is currently at Milestone 3.75 plus MonoGame Playability Pass 2: playable vertical slice mission clarity. It contains a small deterministic core loop in pure C# plus a MonoGame frontend that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and new mechanics.
 
 ## Current Foundation
 
@@ -14,7 +14,7 @@ This repository is currently at Milestone 3.75: playable vertical slice mission.
 - Documentation for architecture, milestones, contribution workflow, and Codex usage
 - Pure C# 2D network prototype with configurable board definitions, adjacent connections, ownership, node types, energy costs, network integrity, threat, instability, deterministic corruption pressure, collapse, turn counter, and placeholder outcomes
 - `BoardDefinition` and `GameConfiguration` models that keep the default 4x4 prototype behavior data-driven and prepare the core for later layers and cube faces
-- Readable MonoGame presentation that draws the authored mission board, HUD, action buttons, hover details, highlights, mission log, and win/loss banner while routing input through `CodecTactics.Core`
+- Readable MonoGame presentation that draws the authored mission board, HUD, action buttons, concise node badges, action previews, legend, hover details, highlights, mission log, and win/loss banner while routing input through `CodecTactics.Core`
 - One authored vertical-slice mission with a fixed board, objective hold win condition, loss states, player feedback, and restartable game loop
 - Legacy Godot files remain for reference only and are not part of validation or the active frontend workflow
 
@@ -61,7 +61,7 @@ R = Restart Mission
 Esc = Exit
 Left click = apply the selected action to a node
 Left click HUD button = select action, end turn, or restart
-Mouse hover = inspect node owner, type, integrity, threat, instability, and danger reason
+Mouse hover = inspect node owner, type, integrity, threat, selected-action cost, expected result, blocked reason, instability, and danger reason
 ```
 
 The app launches the vertical-slice mission, `Secure the Uplink`.
@@ -72,7 +72,7 @@ The app launches the vertical-slice mission, `Secure the Uplink`.
 - Win: claim and hold the objective for the required hold turns.
 - Lose: the player core collapses or corruption captures the objective.
 
-Use the action buttons or number keys to choose Claim, Reinforce, or Weaken. The selected action is highlighted in the HUD, valid targets are highlighted on the board, and the objective has a persistent gold outline. Click a node to apply the selected action, or use End Turn to let corruption act without spending energy. Hover nodes to inspect ownership, type, integrity, threat, instability, and danger reason. The HUD action log reports successful actions, invalid move reasons, corruption spread, corruption containment, collapse events, resource income, objective progress, and mission outcome. Restart Mission resets the authored board deterministically.
+Use the action buttons or number keys to choose Claim, Reinforce, or Weaken. The selected action is highlighted in the HUD, valid targets are highlighted on the board, and invalid targets are dimmed while the hover tooltip explains the block. The objective has a pulsing gold outline, unstable nodes pulse orange, and the selected node receives a white outline. Click a node to apply the selected action, or use End Turn to let corruption act without spending energy. Hover nodes to inspect ownership, type, integrity, threat, cost, expected action result, blocked reason, instability, and danger reason. The HUD legend decodes short board labels such as `P`, `X`, `OBJ`, `RES`, `RLY`, and `FW`. The HUD feed and compact action log report successful actions, invalid move reasons, corruption spread or containment, collapse events, resource income, objective progress, and mission outcome. Restart Mission resets the authored board deterministically.
 
 ## Validate
 
@@ -125,7 +125,7 @@ Codec_Tactics.sln             .NET validation solution
 ## Milestone 1.5 Visible Prototype
 
 - The original Milestone 1.5 Godot prototype is now retired from the active workflow.
-- The active MonoGame frontend renders the current authored mission board with centered 2D nodes, readable labels, connection lines, action buttons, hover tooltip, valid move highlights, objective highlight, result log, and win/loss banner.
+- The active MonoGame frontend renders the current authored mission board with centered 2D nodes, concise labels, connection lines, action buttons, hover tooltip, valid move highlights, dimmed invalid targets, objective/danger pulse outlines, legend, result log, and compact win/loss banner.
 - Neutral, player, enemy/corruption, and reinforced nodes have distinct visual treatments.
 - Node types are labeled and outlined in distinct colors.
 - Valid reachable neutral clicks claim nodes through `CodecTactics.Core`.
@@ -133,6 +133,7 @@ Codec_Tactics.sln             .NET validation solution
 - End Turn uses the real core corruption turn.
 - The HUD shows selected action, turn, energy, objective progress, corruption pressure, result feedback, invalid move reasons, and recent action history.
 - Restart Mission starts a fresh deterministic copy of the authored mission.
+- Playability Pass 2 is presentation-only: it improves clarity, preview feedback, target readability, contrast, and layout without adding layers, cube visualization, Godot work, or new mechanics.
 
 ## Current Limitations
 

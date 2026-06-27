@@ -71,6 +71,16 @@
 - Keep the pass presentation-only with no new gameplay rules, layers, cubes, or Godot work.
 - Status: implemented as the first readability and playability pass for the MonoGame vertical slice.
 
+## MonoGame Playability Pass 2
+
+- Make player, corruption, neutral, objective, and unstable nodes more visually distinct.
+- Replace repeated neutral text with concise owner/type badges and a small board legend.
+- Expand hover details with selected-action cost, valid-result preview, and blocked-target explanations.
+- Show valid targets clearly and dim invalid targets for the selected action.
+- Improve mission feed, objective progress, corruption/collapse feedback, action-log density, selected-node feedback, and end-state banner placement.
+- Keep the pass presentation-only with no new gameplay rules, layers, cubes, or Godot work.
+- Status: implemented as the second clarity and game-feel pass for the MonoGame vertical slice.
+
 ## Milestone 3.5: Layers
 
 - Add deeper network layers with increasing complexity.

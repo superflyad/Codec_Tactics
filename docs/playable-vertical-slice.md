@@ -56,7 +56,7 @@ One validated route is:
 The prototype reports:
 
 - Selected action.
-- Hovered node ownership, type, integrity, threat, instability, and danger reason.
+- Hovered node ownership, type, integrity, threat, selected-action cost, valid-result preview, blocked-target reason, instability, and danger reason.
 - Current energy and corruption pressure.
 - Current objective and hold progress.
 - Valid and invalid action results from core.
@@ -65,7 +65,7 @@ The prototype reports:
 - Collapse events.
 - Clear win/loss result.
 
-Unstable player-owned nodes render with an orange danger ring. The objective renders with a yellow objective ring.
+Unstable player-owned nodes render with a pulsing orange danger ring. The objective renders with a pulsing yellow objective ring. Valid targets use a green outline, invalid targets are dimmed for the selected action, and the board legend decodes concise owner and node-type badges.
 
 ## Tests
 

@@ -4,6 +4,7 @@ All notable changes to Codec_Tactics will be documented in this file.
 
 ## Unreleased
 
+- Added MonoGame Playability Pass 2 with concise node badges, stronger owner/type/objective/danger contrast, a board legend, selected-node outline, pulsing objective and unstable-node outlines, hover action previews, visible invalid-target dimming, clearer mission feed messages, compact action log entries, an objective progress bar, and a less obstructive mission result banner.
 - Added MonoGame Playability Pass 1 with a larger window, centered mission board, readable HUD panel, visible Claim/Reinforce/Weaken/End Turn/Restart buttons, keyboard shortcuts, selected-action highlight, valid move highlight, objective highlight, node hover tooltip, action log, invalid move feedback, corruption/collapse messages, readable node labels, and clear win/loss banner.
 - Added `src/CodecTactics.MonoGame` as the active Visual Studio-first MonoGame frontend.
 - Referenced `CodecTactics.Core` from the MonoGame project and added the project to `Codec_Tactics.sln`.

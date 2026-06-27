@@ -23,7 +23,7 @@ public class Game1 : Game
     private const int CellSize = 118;
     private const int ButtonHeight = 42;
     private const int TextPadding = 12;
-    private const int MaxLogEntries = 7;
+    private const int MaxLogEntries = 5;
 
     private static readonly XnaColor BackgroundColor = new(13, 17, 23);
     private static readonly XnaColor PanelColor = new(28, 34, 45);
@@ -36,6 +36,7 @@ public class Game1 : Game
     private static readonly XnaColor WarningColor = new(255, 154, 70);
     private static readonly XnaColor LossColor = new(218, 72, 85);
     private static readonly XnaColor WinColor = new(83, 202, 132);
+    private static readonly XnaColor DisabledOverlayColor = new(10, 12, 16, 115);
 
     private readonly GraphicsDeviceManager _graphics;
     private readonly Dictionary<TextKey, Texture2D> _textCache = new();
@@ -51,6 +52,8 @@ public class Game1 : Game
     private string _status = "Mission ready. Select an action and claim toward the objective.";
     private string _invalidReason = string.Empty;
     private NodeState _hoveredNode;
+    private NodeId? _selectedNodeId;
+    private double _totalSeconds;
 
     public Game1()
     {
@@ -89,6 +92,7 @@ public class Game1 : Game
     {
         var keyboard = Keyboard.GetState();
         var mouse = Mouse.GetState();
+        _totalSeconds = gameTime.TotalGameTime.TotalSeconds;
 
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || keyboard.IsKeyDown(Keys.Escape))
         {
@@ -148,6 +152,7 @@ public class Game1 : Game
         var boardBounds = GetBoardBounds();
         DrawText("Secure the Uplink", boardBounds.X, 36, 28, TextColor);
         DrawText(_game.ObjectiveText, boardBounds.X, 72, 16, MutedTextColor, boardBounds.Width + 40);
+        DrawLegend(boardBounds.X, 110, boardBounds.Width);
 
         foreach (var connection in _game.Board.Connections)
         {
@@ -172,47 +177,64 @@ public class Game1 : Game
             NodeSize,
             NodeSize);
         var isHovered = _hoveredNode?.Id == node.Id;
+        var isSelected = _selectedNodeId == node.Id;
         var isObjective = _game.ObjectiveNode == node.Id;
-        var isValid = IsValidTargetForSelectedAction(node);
+        var preview = GetActionPreview(node);
+        var isValid = preview.IsValid;
+        var canActOnAnyNode = _game.Result == GameResult.InProgress && HasAnyValidTargetForSelectedAction();
 
         Fill(bounds, GetOwnerColor(node.Owner));
 
         if (node.Type != NodeType.Standard)
         {
-            Fill(new XnaRectangle(bounds.X + 6, bounds.Y + 6, bounds.Width - 12, 10), GetTypeColor(node.Type));
+            Fill(new XnaRectangle(bounds.X + 7, bounds.Y + 7, bounds.Width - 14, 12), GetTypeColor(node.Type));
         }
 
         if (isValid)
         {
             DrawRectangle(Grow(bounds, 9), ValidMoveColor, 4);
         }
+        else if (canActOnAnyNode)
+        {
+            Fill(bounds, DisabledOverlayColor);
+            DrawLine(new Vector2(bounds.X + 13, bounds.Y + 13), new Vector2(bounds.Right - 13, bounds.Bottom - 13), new XnaColor(119, 130, 148), 3);
+        }
 
         if (isObjective)
         {
-            DrawRectangle(Grow(bounds, 4), ObjectiveColor, 5);
+            var pulse = GetPulseAmount(4, 4);
+            DrawRectangle(Grow(bounds, pulse), ObjectiveColor, 5);
         }
         else if (node.IsUnstable)
         {
-            DrawRectangle(Grow(bounds, 4), WarningColor, 4);
+            var pulse = GetPulseAmount(4, 4);
+            DrawRectangle(Grow(bounds, pulse), WarningColor, 4);
         }
         else
         {
             DrawRectangle(bounds, new XnaColor(221, 226, 235), 2);
         }
 
-        if (isHovered)
+        if (isSelected)
         {
-            DrawRectangle(Grow(bounds, 13), AccentColor, 3);
+            DrawRectangle(Grow(bounds, 14), XnaColor.White, 3);
         }
 
-        var primaryLabel = GetPrimaryNodeLabel(node);
-        var secondaryLabel = GetSecondaryNodeLabel(node);
-        DrawCenteredText(primaryLabel, bounds.X + 5, bounds.Y + 22, bounds.Width - 10, 16, 13, TextColor);
-        DrawCenteredText(secondaryLabel, bounds.X + 5, bounds.Y + 42, bounds.Width - 10, 16, 12, MutedTextColor);
+        if (isHovered)
+        {
+            DrawRectangle(Grow(bounds, 18), AccentColor, 3);
+        }
+
+        DrawCenteredText(GetOwnerIcon(node.Owner), bounds.X + 6, bounds.Y + 21, bounds.Width - 12, 21, 20, TextColor);
+        DrawCenteredText(GetTypeBadge(node), bounds.X + 7, bounds.Y + 45, bounds.Width - 14, 16, 12, node.Type == NodeType.Standard ? MutedTextColor : TextColor);
 
         if (node.Owner == NodeOwner.Player)
         {
             DrawCenteredText($"I {node.Integrity}  T {node.Threat}", bounds.X + 4, bounds.Bottom - 20, bounds.Width - 8, 14, 11, TextColor);
+        }
+        else if (node.Owner == NodeOwner.Enemy)
+        {
+            DrawCenteredText("CORRUPT", bounds.X + 4, bounds.Bottom - 20, bounds.Width - 8, 14, 10, TextColor);
         }
     }
 
@@ -228,8 +250,8 @@ public class Game1 : Game
         y += 38;
         DrawText($"Turn {_game.TurnNumber}   Energy {_game.PlayerEnergy}", x, y, 17, TextColor);
         y += 24;
-        DrawText($"Objective {_game.ObjectiveHoldTurns}/{_game.RequiredObjectiveHoldTurns}", x, y, 17, ObjectiveColor);
-        y += 24;
+        DrawObjectiveProgress(x, y, hud.Width - TextPadding * 2);
+        y += 32;
         DrawText($"Corruption pressure {_game.CorruptionPressure}", x, y, 16, WarningColor);
         y += 34;
 
@@ -241,7 +263,7 @@ public class Game1 : Game
         y = DrawCommandButton(x, y + 8, "R", "Restart", ButtonAction.Restart);
         y += 22;
 
-        DrawText("Status", x, y, 18, TextColor);
+        DrawText("Mission Feed", x, y, 18, TextColor);
         y += 26;
         DrawText(_status, x, y, 15, TextColor, hud.Width - TextPadding * 2);
         y += EstimateWrappedHeight(_status, hud.Width - TextPadding * 2, 15) + 12;
@@ -295,20 +317,25 @@ public class Game1 : Game
 
         var mouse = Mouse.GetState().Position;
         var width = 280;
-        var height = 156;
+        var node = _hoveredNode;
+        var preview = GetActionPreview(node);
+        var height = node.IsUnstable || !string.IsNullOrWhiteSpace(node.DangerReason) ? 188 : 170;
         var x = Math.Min(mouse.X + 18, WindowWidth - width - 12);
         var y = Math.Min(mouse.Y + 18, WindowHeight - height - 12);
         var bounds = new XnaRectangle(x, y, width, height);
         Fill(bounds, new XnaColor(21, 26, 35));
-        DrawRectangle(bounds, AccentColor, 2);
+        DrawRectangle(bounds, preview.IsValid ? ValidMoveColor : AccentColor, 2);
 
-        var node = _hoveredNode;
-        DrawText($"{GetPrimaryNodeLabel(node)} {node.Id}", x + 12, y + 10, 17, TextColor);
+        DrawText($"{GetOwnerIcon(node.Owner)} {GetTypeLabel(node.Type)} {node.Id}", x + 12, y + 10, 17, TextColor);
         DrawText($"Owner: {GetOwnerLabel(node.Owner)}", x + 12, y + 36, 14, MutedTextColor);
-        DrawText($"Type: {GetTypeLabel(node.Type)}", x + 12, y + 56, 14, MutedTextColor);
-        DrawText($"Integrity {node.Integrity}   Threat {node.Threat}", x + 12, y + 76, 14, TextColor);
-        DrawText($"Unstable turns: {node.UnstableTurns}", x + 12, y + 96, 14, node.IsUnstable ? WarningColor : MutedTextColor);
-        DrawText(node.DangerReason, x + 12, y + 118, 13, node.IsUnstable ? WarningColor : MutedTextColor, width - 24);
+        DrawText($"Integrity {node.Integrity}   Threat {node.Threat}   Cost {preview.Cost}", x + 12, y + 56, 14, TextColor);
+        DrawText(preview.IsValid ? "Action: " + preview.SuccessText : "Blocked: " + preview.Reason, x + 12, y + 78, 13, preview.IsValid ? ValidMoveColor : WarningColor, width - 24);
+        DrawText($"Selected: {_selectedAction}", x + 12, y + 118, 13, MutedTextColor);
+
+        if (node.IsUnstable || !string.IsNullOrWhiteSpace(node.DangerReason))
+        {
+            DrawText($"Danger: {node.DangerReason}", x + 12, y + 140, 13, node.IsUnstable ? WarningColor : MutedTextColor, width - 24);
+        }
     }
 
     private void DrawResultBanner()
@@ -319,11 +346,12 @@ public class Game1 : Game
         }
 
         var isWin = _game.Result == GameResult.PlayerWin;
-        var bounds = new XnaRectangle(80, 330, WindowWidth - HudWidth - 170, 108);
-        Fill(bounds, isWin ? new XnaColor(24, 86, 55) : new XnaColor(97, 31, 40));
+        var boardBounds = GetBoardBounds();
+        var bounds = new XnaRectangle(boardBounds.X + 28, boardBounds.Y + 16, boardBounds.Width - 56, 88);
+        Fill(bounds, isWin ? new XnaColor(24, 86, 55, 232) : new XnaColor(97, 31, 40, 232));
         DrawRectangle(bounds, isWin ? WinColor : LossColor, 4);
-        DrawCenteredText(isWin ? "MISSION COMPLETE" : "MISSION FAILED", bounds.X, bounds.Y + 22, bounds.Width, 32, 28, TextColor);
-        DrawCenteredText("Press R or click Restart to run the mission again.", bounds.X, bounds.Y + 66, bounds.Width, 22, 16, TextColor);
+        DrawCenteredText(isWin ? "MISSION COMPLETE" : "MISSION FAILED", bounds.X, bounds.Y + 14, bounds.Width, 30, 25, TextColor);
+        DrawCenteredText("R / Restart runs the mission again.", bounds.X, bounds.Y + 53, bounds.Width, 20, 15, TextColor);
     }
 
     private void HandleClick(XnaPoint mousePosition)
@@ -357,6 +385,7 @@ public class Game1 : Game
             return;
         }
 
+        _selectedNodeId = node.Id;
         ApplyResult(_game.ExecutePlayerAction(_selectedAction, node.Id));
     }
 
@@ -365,7 +394,7 @@ public class Game1 : Game
         _selectedAction = action;
         _invalidReason = string.Empty;
         _status = $"Selected {action}.";
-        Log($"Selected {action}.");
+        Log($"{action}: {CountValidTargetsForSelectedAction()} target(s) available.");
     }
 
     private void RestartMission()
@@ -374,36 +403,100 @@ public class Game1 : Game
         _selectedAction = PlayerActionMode.Claim;
         _invalidReason = string.Empty;
         _status = "Mission restarted. Reach and hold the Objective.";
+        _selectedNodeId = null;
         _actionLog.Clear();
         Log("Mission restarted.");
     }
 
     private void ApplyResult(GameActionResult result)
     {
-        _status = result.Message;
+        _status = FormatStatusMessage(result);
         _invalidReason = result.Succeeded ? string.Empty : result.Message;
-        Log(result.Message);
+        Log(FormatLogMessage(result));
     }
 
-    private bool IsValidTargetForSelectedAction(NodeState node)
+    private ActionPreview GetActionPreview(NodeState node)
     {
         if (_game.Result != GameResult.InProgress)
         {
-            return false;
+            return new ActionPreview(false, "Mission already ended.", "None", "Restart", 0);
         }
 
         return _selectedAction switch
         {
-            PlayerActionMode.Claim => node.Owner == NodeOwner.Neutral
-                && _game.PlayerEnergy >= _game.Configuration.ClaimEnergyCost
-                && _game.Board.IsReachableForPlayerClaim(node.Id, _game.Configuration),
-            PlayerActionMode.Reinforce => node.Owner == NodeOwner.Player
-                && _game.PlayerEnergy >= _game.Configuration.ReinforceEnergyCost,
-            PlayerActionMode.Weaken => node.Owner == NodeOwner.Enemy
-                && _game.PlayerEnergy >= _game.Configuration.WeakenConnectionEnergyCost
-                && _game.Board.GetAdjacentNodes(node.Id).Any(adjacent => adjacent.Owner == NodeOwner.Player),
-            _ => false
+            PlayerActionMode.Claim => PreviewClaim(node),
+            PlayerActionMode.Reinforce => PreviewReinforce(node),
+            PlayerActionMode.Weaken => PreviewWeaken(node),
+            _ => new ActionPreview(false, "Unknown action.", "None", "Select action", 0)
         };
+    }
+
+    private ActionPreview PreviewClaim(NodeState node)
+    {
+        var cost = _game.Configuration.ClaimEnergyCost;
+        if (node.Owner != NodeOwner.Neutral)
+        {
+            return new ActionPreview(false, "Only neutral nodes can be claimed.", cost.ToString(), "Claim node", cost);
+        }
+
+        if (_game.PlayerEnergy < cost)
+        {
+            return new ActionPreview(false, $"Need {cost} energy.", cost.ToString(), "Claim node", cost);
+        }
+
+        if (!_game.Board.IsReachableForPlayerClaim(node.Id, _game.Configuration))
+        {
+            return new ActionPreview(false, "Outside player claim range.", cost.ToString(), "Claim node", cost);
+        }
+
+        return new ActionPreview(true, string.Empty, cost.ToString(), $"Claim {node.Id}; corruption then resolves.", cost);
+    }
+
+    private ActionPreview PreviewReinforce(NodeState node)
+    {
+        var cost = _game.Configuration.ReinforceEnergyCost;
+        if (node.Owner != NodeOwner.Player)
+        {
+            return new ActionPreview(false, "Only player nodes can be reinforced.", cost.ToString(), "Reinforce node", cost);
+        }
+
+        if (_game.PlayerEnergy < cost)
+        {
+            return new ActionPreview(false, $"Need {cost} energy.", cost.ToString(), "Reinforce node", cost);
+        }
+
+        return new ActionPreview(true, string.Empty, cost.ToString(), $"Reinforce {node.Id}; improves stability.", cost);
+    }
+
+    private ActionPreview PreviewWeaken(NodeState node)
+    {
+        var cost = _game.Configuration.WeakenConnectionEnergyCost;
+        if (node.Owner != NodeOwner.Enemy)
+        {
+            return new ActionPreview(false, "Only corrupted nodes can be weakened.", cost.ToString(), "Weaken link", cost);
+        }
+
+        if (_game.PlayerEnergy < cost)
+        {
+            return new ActionPreview(false, $"Need {cost} energy.", cost.ToString(), "Weaken link", cost);
+        }
+
+        if (!_game.Board.GetAdjacentNodes(node.Id).Any(adjacent => adjacent.Owner == NodeOwner.Player))
+        {
+            return new ActionPreview(false, "No adjacent player link.", cost.ToString(), "Weaken link", cost);
+        }
+
+        return new ActionPreview(true, string.Empty, cost.ToString(), $"Weaken link to {node.Id}.", cost);
+    }
+
+    private bool HasAnyValidTargetForSelectedAction()
+    {
+        return _game.Board.Nodes.Any(node => GetActionPreview(node).IsValid);
+    }
+
+    private int CountValidTargetsForSelectedAction()
+    {
+        return _game.Board.Nodes.Count(node => GetActionPreview(node).IsValid);
     }
 
     private NodeState GetNodeAt(XnaPoint mousePosition)
@@ -455,29 +548,25 @@ public class Game1 : Game
         return new Vector2(bounds.X + NodeSize / 2 + nodeId.X * CellSize, bounds.Y + NodeSize / 2 + nodeId.Y * CellSize);
     }
 
-    private static string GetPrimaryNodeLabel(NodeState node)
-    {
-        if (node.Owner == NodeOwner.Enemy)
-        {
-            return "Corruption";
-        }
-
-        return node.Type == NodeType.Firewall ? "Firewall" : GetTypeLabel(node.Type);
-    }
-
-    private string GetSecondaryNodeLabel(NodeState node)
+    private string GetTypeBadge(NodeState node)
     {
         if (node.Id == _game.PlayerCore)
         {
-            return "Core";
+            return "CORE";
         }
 
         if (_game.ObjectiveNode == node.Id)
         {
-            return "Objective";
+            return "OBJ";
         }
 
-        return GetOwnerLabel(node.Owner);
+        return node.Type switch
+        {
+            NodeType.Resource => "RES",
+            NodeType.Relay => "RLY",
+            NodeType.Firewall => "FW",
+            _ => "STD"
+        };
     }
 
     private static string GetOwnerLabel(NodeOwner owner)
@@ -501,6 +590,16 @@ public class Game1 : Game
         };
     }
 
+    private static string GetOwnerIcon(NodeOwner owner)
+    {
+        return owner switch
+        {
+            NodeOwner.Player => "P",
+            NodeOwner.Enemy => "X",
+            _ => "-"
+        };
+    }
+
     private static XnaColor GetOwnerColor(NodeOwner owner)
     {
         return owner switch
@@ -520,6 +619,127 @@ public class Game1 : Game
             NodeType.Firewall => new XnaColor(178, 112, 229),
             _ => XnaColor.Transparent
         };
+    }
+
+    private void DrawLegend(int x, int y, int width)
+    {
+        var legendBounds = new XnaRectangle(x, y, width, 54);
+        Fill(legendBounds, new XnaColor(20, 25, 34));
+        DrawRectangle(legendBounds, new XnaColor(55, 65, 82), 2);
+        DrawText("Legend", x + 12, y + 15, 14, TextColor);
+
+        var itemX = x + 92;
+        DrawLegendItem(itemX, y + 13, GetOwnerColor(NodeOwner.Player), "P Player");
+        itemX += 98;
+        DrawLegendItem(itemX, y + 13, GetOwnerColor(NodeOwner.Enemy), "X Corrupt");
+        itemX += 120;
+        DrawLegendItem(itemX, y + 13, GetOwnerColor(NodeOwner.Neutral), "- Neutral");
+        itemX += 112;
+        DrawLegendItem(itemX, y + 13, ObjectiveColor, "OBJ");
+        itemX += 74;
+        DrawLegendItem(itemX, y + 13, WarningColor, "Danger");
+    }
+
+    private void DrawLegendItem(int x, int y, XnaColor color, string label)
+    {
+        Fill(new XnaRectangle(x, y + 3, 14, 14), color);
+        DrawRectangle(new XnaRectangle(x, y + 3, 14, 14), TextColor, 1);
+        DrawText(label, x + 20, y, 12, MutedTextColor);
+    }
+
+    private void DrawObjectiveProgress(int x, int y, int width)
+    {
+        DrawText($"Objective {_game.ObjectiveHoldTurns}/{_game.RequiredObjectiveHoldTurns}", x, y, 17, ObjectiveColor);
+        var bar = new XnaRectangle(x + 152, y + 7, width - 152, 12);
+        Fill(bar, new XnaColor(55, 62, 76));
+        var progress = _game.RequiredObjectiveHoldTurns == 0
+            ? 0f
+            : Math.Clamp(_game.ObjectiveHoldTurns / (float)_game.RequiredObjectiveHoldTurns, 0f, 1f);
+        Fill(new XnaRectangle(bar.X, bar.Y, (int)(bar.Width * progress), bar.Height), ObjectiveColor);
+        DrawRectangle(bar, PanelBorderColor, 1);
+    }
+
+    private string FormatStatusMessage(GameActionResult result)
+    {
+        if (!result.Succeeded)
+        {
+            return result.Message;
+        }
+
+        var parts = new List<string> { result.Message.Split('.')[0] + "." };
+
+        if (result.CorruptionTarget.HasValue)
+        {
+            parts.Add($"Corruption captured {result.CorruptionTarget.Value}.");
+        }
+        else if (result.CorruptionFocusTarget.HasValue)
+        {
+            parts.Add($"Corruption pressed {result.CorruptionFocusTarget.Value}, but it held.");
+        }
+        else
+        {
+            parts.Add("Corruption built pressure without spreading.");
+        }
+
+        if (result.CollapsedNodes is { Count: > 0 })
+        {
+            parts.Add($"Collapse: {string.Join(", ", result.CollapsedNodes)} fell.");
+        }
+
+        parts.Add($"Objective hold {_game.ObjectiveHoldTurns}/{_game.RequiredObjectiveHoldTurns}.");
+
+        if (result.EnergyGenerated > 0)
+        {
+            parts.Add($"+{result.EnergyGenerated} energy from Resources.");
+        }
+
+        if (result.Result == GameResult.PlayerWin)
+        {
+            parts.Add("Mission complete.");
+        }
+        else if (result.Result == GameResult.PlayerLoss)
+        {
+            parts.Add("Mission failed.");
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private static string FormatLogMessage(GameActionResult result)
+    {
+        if (!result.Succeeded)
+        {
+            return "Blocked: " + result.Message;
+        }
+
+        var firstSentence = result.Message.Split('.')[0] + ".";
+        if (result.Result == GameResult.PlayerWin)
+        {
+            return firstSentence + " Mission complete.";
+        }
+
+        if (result.Result == GameResult.PlayerLoss)
+        {
+            return firstSentence + " Mission failed.";
+        }
+
+        if (result.CollapsedNodes is { Count: > 0 })
+        {
+            return firstSentence + $" Collapse: {string.Join(", ", result.CollapsedNodes)}.";
+        }
+
+        if (result.CorruptionTarget.HasValue)
+        {
+            return firstSentence + $" Corruption -> {result.CorruptionTarget.Value}.";
+        }
+
+        return firstSentence;
+    }
+
+    private int GetPulseAmount(int baseAmount, int range)
+    {
+        var wave = (MathF.Sin((float)_totalSeconds * 3.8f) + 1f) / 2f;
+        return baseAmount + (int)(wave * range);
     }
 
     private void DrawCenteredText(string text, int x, int y, int width, int height, int size, XnaColor color)
@@ -647,6 +867,8 @@ public class Game1 : Game
     private readonly record struct TextKey(string Text, int Size, uint PackedColor);
 
     private readonly record struct ButtonDefinition(XnaRectangle Bounds, ButtonAction Action, PlayerActionMode? PlayerAction);
+
+    private readonly record struct ActionPreview(bool IsValid, string Reason, string Cost, string SuccessText, int EnergyCost);
 
     private enum ButtonAction
     {
