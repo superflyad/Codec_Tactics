@@ -63,6 +63,14 @@
 - Keep all mission and action rules in `CodecTactics.Core`.
 - Status: implemented as the first complete start-to-finish playable mission.
 
+## MonoGame Playability Pass 1
+
+- Increase the MonoGame window size and center the authored board.
+- Add a readable HUD with action buttons, selected action highlight, keyboard shortcut parity, action log, invalid move feedback, and mission status.
+- Add readable node labels, hover tooltips, valid move highlights, objective highlight, corruption/collapse feedback, and win/loss banner.
+- Keep the pass presentation-only with no new gameplay rules, layers, cubes, or Godot work.
+- Status: implemented as the first readability and playability pass for the MonoGame vertical slice.
+
 ## Milestone 3.5: Layers
 
 - Add deeper network layers with increasing complexity.

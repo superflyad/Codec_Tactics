@@ -14,7 +14,7 @@ This repository is currently at Milestone 3.75: playable vertical slice mission.
 - Documentation for architecture, milestones, contribution workflow, and Codex usage
 - Pure C# 2D network prototype with configurable board definitions, adjacent connections, ownership, node types, energy costs, network integrity, threat, instability, deterministic corruption pressure, collapse, turn counter, and placeholder outcomes
 - `BoardDefinition` and `GameConfiguration` models that keep the default 4x4 prototype behavior data-driven and prepare the core for later layers and cube faces
-- Minimal MonoGame presentation that draws the authored mission board and routes input through `CodecTactics.Core`
+- Readable MonoGame presentation that draws the authored mission board, HUD, action buttons, hover details, highlights, mission log, and win/loss banner while routing input through `CodecTactics.Core`
 - One authored vertical-slice mission with a fixed board, objective hold win condition, loss states, player feedback, and restartable game loop
 - Legacy Godot files remain for reference only and are not part of validation or the active frontend workflow
 
@@ -50,7 +50,7 @@ To set the startup project:
 2. Select `Set as Startup Project`.
 3. Press `F5` to run with the debugger, or `Ctrl+F5` to run without debugging.
 
-The current MonoGame input surface is intentionally small:
+The current MonoGame input surface supports both keyboard shortcuts and visible HUD buttons:
 
 ```text
 1 = Claim
@@ -60,6 +60,8 @@ Space = End Turn
 R = Restart Mission
 Esc = Exit
 Left click = apply the selected action to a node
+Left click HUD button = select action, end turn, or restart
+Mouse hover = inspect node owner, type, integrity, threat, instability, and danger reason
 ```
 
 The app launches the vertical-slice mission, `Secure the Uplink`.
@@ -70,7 +72,7 @@ The app launches the vertical-slice mission, `Secure the Uplink`.
 - Win: claim and hold the objective for the required hold turns.
 - Lose: the player core collapses or corruption captures the objective.
 
-Use the action buttons to choose Claim, Reinforce, or Weaken. Click a node to apply the selected action, or use End Turn to let corruption act without spending energy. Hover nodes to inspect ownership, type, integrity, threat, instability, and danger reason. Restart Mission resets the authored board deterministically.
+Use the action buttons or number keys to choose Claim, Reinforce, or Weaken. The selected action is highlighted in the HUD, valid targets are highlighted on the board, and the objective has a persistent gold outline. Click a node to apply the selected action, or use End Turn to let corruption act without spending energy. Hover nodes to inspect ownership, type, integrity, threat, instability, and danger reason. The HUD action log reports successful actions, invalid move reasons, corruption spread, corruption containment, collapse events, resource income, objective progress, and mission outcome. Restart Mission resets the authored board deterministically.
 
 ## Validate
 
@@ -123,18 +125,18 @@ Codec_Tactics.sln             .NET validation solution
 ## Milestone 1.5 Visible Prototype
 
 - The original Milestone 1.5 Godot prototype is now retired from the active workflow.
-- The active MonoGame frontend renders the current authored mission board with temporary 2D nodes and connection lines.
+- The active MonoGame frontend renders the current authored mission board with centered 2D nodes, readable labels, connection lines, action buttons, hover tooltip, valid move highlights, objective highlight, result log, and win/loss banner.
 - Neutral, player, enemy/corruption, and reinforced nodes have distinct visual treatments.
 - Node types are labeled and outlined in distinct colors.
 - Valid reachable neutral clicks claim nodes through `CodecTactics.Core`.
 - Invalid clicks do not mutate core state and update the HUD status text.
 - End Turn uses the real core corruption turn.
-- The window title shows selected action, turn, energy, result, and last action status.
+- The HUD shows selected action, turn, energy, objective progress, corruption pressure, result feedback, invalid move reasons, and recent action history.
 - Restart Mission starts a fresh deterministic copy of the authored mission.
 
 ## Current Limitations
 
-- MonoGame visuals are temporary debug-style UI, not final art.
+- MonoGame visuals are a readable temporary UI pass, not final art.
 - Legacy Godot files remain in the repository but are not active workflow targets.
 - The playable slice is still one authored 5x5 scenario.
 - Network integrity and threat formulas are prototype balance values.
