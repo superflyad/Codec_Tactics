@@ -1,40 +1,68 @@
 # Codec_Tactics
 
-Codec_Tactics is an early-stage C# Godot project for a turn-based network tactics game.
+Codec_Tactics is an early-stage C# MonoGame project for a turn-based network tactics game.
 
 The player builds a growing network across layered, cube-inspired spaces. Each expansion opens useful paths, but poor choices can expose routes for enemy corruption. Complexity increases as the player descends into deeper network layers.
 
-This repository is currently at Milestone 3.75: playable vertical slice mission. It contains a small deterministic core loop in pure C# plus a minimal Godot scene that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and polish.
+This repository is currently at Milestone 3.75: playable vertical slice mission. It contains a small deterministic core loop in pure C# plus a minimal MonoGame frontend that renders and interacts with that core model. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and polish.
 
 ## Current Foundation
 
-- Godot project metadata in `project.godot`
-- Launchable Godot main scene in `scenes/Main.tscn`
-- C# solution for deterministic non-Godot domain code
+- C# solution for deterministic domain code, tests, and the MonoGame frontend
 - Console-based automated test runner with no third-party test dependency
 - Validation script for repeatable local checks
 - Documentation for architecture, milestones, contribution workflow, and Codex usage
 - Pure C# 2D network prototype with configurable board definitions, adjacent connections, ownership, node types, energy costs, network integrity, threat, instability, deterministic corruption pressure, collapse, turn counter, and placeholder outcomes
 - `BoardDefinition` and `GameConfiguration` models that keep the default 4x4 prototype behavior data-driven and prepare the core for later layers and cube faces
-- Minimal Godot C# presentation that draws the board, exposes Claim, Reinforce, Weaken, End Turn, and Restart Mission controls, and updates HUD text
+- Minimal MonoGame presentation that draws the authored mission board and routes input through `CodecTactics.Core`
 - One authored vertical-slice mission with a fixed board, objective hold win condition, loss states, player feedback, and restartable game loop
+- Legacy Godot files remain for reference only and are not part of validation or the active frontend workflow
 
 ## Requirements
 
 - .NET SDK 8.0 or newer
-- Godot with .NET support for future editor/game work
+- Visual Studio 2022 or newer with .NET desktop development tools
+- MonoGame templates:
 
-Godot CLI is optional for validation. If it is not available, the validation script records that and still checks repository structure plus .NET build/tests.
+```powershell
+dotnet new install MonoGame.Templates.CSharp
+```
+
+- MonoGame Content Builder editor:
+
+```powershell
+dotnet tool install --global dotnet-mgcb-editor
+```
+
+If the MGCB editor is already installed, update it instead:
+
+```powershell
+dotnet tool update --global dotnet-mgcb-editor
+```
 
 ## Play Mission
 
-Open the repository in Godot .NET 4.x or newer and run the configured main scene:
+Open `Codec_Tactics.sln` in Visual Studio and run the MonoGame project.
+
+To set the startup project:
+
+1. Right-click `CodecTactics.MonoGame` in Solution Explorer.
+2. Select `Set as Startup Project`.
+3. Press `F5` to run with the debugger, or `Ctrl+F5` to run without debugging.
+
+The current MonoGame input surface is intentionally small:
 
 ```text
-res://scenes/Main.tscn
+1 = Claim
+2 = Reinforce
+3 = Weaken
+Space = End Turn
+R = Restart Mission
+Esc = Exit
+Left click = apply the selected action to a node
 ```
 
-The scene launches the vertical-slice mission, `Secure the Uplink`.
+The app launches the vertical-slice mission, `Secure the Uplink`.
 
 - Start: player core at `(0,2)`.
 - Corruption start: `(4,4)`.
@@ -52,19 +80,19 @@ Run from the repository root:
 .\scripts\validate.ps1
 ```
 
-The script checks required repository files, reports Godot CLI availability, builds the .NET solution, and runs tests.
+The script checks required repository files, confirms Godot validation is retired, builds the .NET solution, and runs tests.
 
 ## Project Layout
 
 ```text
 docs/                         Design and architecture notes
-scenes/                       Godot scene files
 scripts/                      Developer automation
 src/CodecTactics.Core/        Pure C# game-domain foundation
-src/CodecTactics.Godot/       Thin Godot presentation scripts
+src/CodecTactics.MonoGame/    Active MonoGame frontend
+src/CodecTactics.Godot/       Legacy Godot presentation scripts retained for reference
 tests/CodecTactics.Core.Tests/ Console test runner
-project.godot                 Godot project metadata
-Codec_Tactics.csproj          Godot C# project
+project.godot                 Legacy Godot project metadata
+Codec_Tactics.csproj          Legacy Godot C# project
 Codec_Tactics.sln             .NET validation solution
 ```
 
@@ -94,19 +122,20 @@ Codec_Tactics.sln             .NET validation solution
 
 ## Milestone 1.5 Visible Prototype
 
-- The default board renders as temporary 2D circles and connection lines.
+- The original Milestone 1.5 Godot prototype is now retired from the active workflow.
+- The active MonoGame frontend renders the current authored mission board with temporary 2D nodes and connection lines.
 - Neutral, player, enemy/corruption, and reinforced nodes have distinct visual treatments.
 - Node types are labeled and outlined in distinct colors.
 - Valid reachable neutral clicks claim nodes through `CodecTactics.Core`.
 - Invalid clicks do not mutate core state and update the HUD status text.
-- End Turn uses the real core corruption turn rather than a placeholder reinforcement.
-- HUD text shows turn, phase, energy, corruption pressure, status, and result state.
-- HUD text shows the selected action, current objective, hold progress, hover status, and win/loss result.
+- End Turn uses the real core corruption turn.
+- The window title shows selected action, turn, energy, result, and last action status.
 - Restart Mission starts a fresh deterministic copy of the authored mission.
 
 ## Current Limitations
 
-- Godot visuals are temporary debug-style UI, not final art.
+- MonoGame visuals are temporary debug-style UI, not final art.
+- Legacy Godot files remain in the repository but are not active workflow targets.
 - The playable slice is still one authored 5x5 scenario.
 - Network integrity and threat formulas are prototype balance values.
 - Alternate board definitions are engine-supported but not yet balanced scenarios.

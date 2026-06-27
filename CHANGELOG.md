@@ -4,6 +4,10 @@ All notable changes to Codec_Tactics will be documented in this file.
 
 ## Unreleased
 
+- Added `src/CodecTactics.MonoGame` as the active Visual Studio-first MonoGame frontend.
+- Referenced `CodecTactics.Core` from the MonoGame project and added the project to `Codec_Tactics.sln`.
+- Removed Godot from active validation while retaining legacy Godot files for reference.
+- Updated documentation for MonoGame install requirements, Visual Studio startup workflow, and Godot legacy status.
 - Established initial repository foundation.
 - Added Godot project metadata.
 - Added .NET solution, core project, and console test runner.

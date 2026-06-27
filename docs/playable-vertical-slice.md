@@ -2,7 +2,7 @@
 
 The current vertical slice is one complete authored mission named `Secure the Uplink`. It is intentionally small and uses only existing 2D network rules: claiming, reinforcing, weakening corruption, energy, corruption pressure, instability, collapse, and deterministic expansion.
 
-All mission rules live in `CodecTactics.Core`. Godot displays state, lets the player choose an action mode, sends clicks to core, and renders the returned feedback.
+All mission rules live in `CodecTactics.Core`. The active MonoGame frontend displays state, lets the player choose an action mode, sends clicks to core, and renders the returned feedback. The previous Godot implementation is legacy-only.
 
 ## Mission Definition
 
@@ -35,7 +35,7 @@ Objective hold progress resets to 0 when the objective is not player-owned. Acti
 
 ## Player Loop
 
-The Godot scene exposes four main actions:
+The active frontend exposes four main actions:
 
 - Claim: click a reachable neutral node to claim it for energy.
 - Reinforce: click a player-owned node to improve its integrity.
@@ -84,5 +84,5 @@ Core tests cover:
 
 - The mission is one authored 5x5 board, not a campaign or procedural generator.
 - Balance values are prototype-level and tuned only for this route.
-- Visuals are temporary debug-style Godot UI.
+- Visuals are temporary debug-style UI.
 - There are no layers, cubes, save/load, advanced AI, animation polish, or production art.

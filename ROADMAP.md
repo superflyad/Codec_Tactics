@@ -2,7 +2,7 @@
 
 ## Milestone 0: Repo Foundation
 
-- Create a clean Godot/C# repository structure.
+- Create a clean C# repository structure.
 - Add validation, tests, documentation, and contribution workflow.
 - Avoid gameplay implementation until the project can be safely modified.
 
@@ -19,13 +19,21 @@
 - Render the tested 2D network board with temporary visual nodes and connections.
 - Route node clicks and the End Turn button through `CodecTactics.Core`.
 - Keep Godot scene code thin and free of gameplay rules.
-- Status: implemented as the first visual integration slice.
+- Status: implemented historically and now retired as a legacy frontend.
+
+## Workflow Migration: MonoGame Frontend
+
+- Add a Visual Studio-first MonoGame project at `src/CodecTactics.MonoGame`.
+- Reference `CodecTactics.Core` from the MonoGame frontend.
+- Keep all gameplay and mission rules in the core project.
+- Remove Godot from validation and active launch instructions while retaining legacy files until safe removal.
+- Status: active workflow.
 
 ## Milestone 2: Strategic 2D Node Decisions
 
 - Add Standard, Resource, Relay, and Firewall node types.
 - Add player energy, action costs, Resource income, Relay claim reach, and Firewall corruption resistance.
-- Add deterministic corruption pressure and structured Godot-facing action feedback.
+- Add deterministic corruption pressure and structured frontend-facing action feedback.
 - Status: implemented as the strategic 2D prototype slice.
 
 ## Milestone 3: Network Integrity and Threat System
@@ -34,7 +42,7 @@
 - Add calculated integrity and threat values to player-owned nodes.
 - Add instability and deterministic collapse into corruption.
 - Update corruption expansion to prioritize weak, exposed, and unstable targets.
-- Surface danger reasons in the Godot prototype.
+- Surface danger reasons in the active frontend.
 - Status: implemented as the network integrity strategy slice.
 
 ## Milestone 3.25: Engine Hardening and Board Generalization
@@ -43,7 +51,7 @@
 - Add configurable board dimensions, start positions, node type placement, and initial ownership.
 - Add `GameConfiguration` for costs, corruption growth, integrity constants, threat constants, and collapse timing.
 - Preserve deterministic behavior and existing gameplay balance.
-- Keep Godot as a thin presentation layer that loads the default board definition.
+- Keep the frontend as a thin presentation layer that loads the default board definition.
 - Status: implemented as the board/configuration hardening slice.
 
 ## Milestone 3.75: Playable Vertical Slice Mission
@@ -51,7 +59,7 @@
 - Define one authored mission with a fixed 5x5 board, player start, corruption start, objective node, and balanced node type placement.
 - Add objective hold win condition and loss conditions for player core collapse or objective corruption.
 - Add player action modes for Claim, Reinforce, and Weaken, plus End Turn and deterministic Restart Mission.
-- Surface selected action, hover/click feedback, energy, objective progress, collapse/corruption events, danger warnings, and clear win/loss state in the Godot prototype.
+- Surface selected action, click feedback, energy, objective progress, collapse/corruption events, danger warnings, and clear win/loss state in the active frontend.
 - Keep all mission and action rules in `CodecTactics.Core`.
 - Status: implemented as the first complete start-to-finish playable mission.
 

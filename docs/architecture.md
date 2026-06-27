@@ -78,7 +78,13 @@ Milestone 1 corruption expands from enemy-owned nodes into one adjacent neutral 
 ## Future Visualization Goals
 
 - Start with readable 2D prototype scenes.
-- Separate core state from Godot rendering.
+- Separate core state from frontend rendering.
 - Add clear node selection and path feedback.
 - Explore cube-based navigation after rules are testable.
 - Keep debug overlays available for topology, layer, and corruption state.
+
+## Frontend Workflow
+
+`src/CodecTactics.MonoGame` is the active frontend project. It references `CodecTactics.Core`, renders current board state, and routes player input through core commands.
+
+The previous Godot scene and project files are legacy artifacts. They should not be used for validation or new active frontend work unless a future task explicitly reopens that path.

@@ -1,6 +1,6 @@
 # Mechanics
 
-This document describes the implemented 2D prototype rules. These rules live in `CodecTactics.Core`; Godot only displays state and sends player actions.
+This document describes the implemented 2D prototype rules. These rules live in `CodecTactics.Core`; the active MonoGame frontend only displays state and sends player actions.
 
 The current playable mission is defined by `MissionDefinition.CreateVerticalSlice()`. It uses the same rules on one authored 5x5 board with a player core, corruption start, objective node, and objective hold win/loss conditions.
 

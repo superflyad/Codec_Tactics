@@ -23,7 +23,7 @@ Use this command from the repository root:
 .\scripts\validate.ps1
 ```
 
-If Godot CLI is missing, say so clearly. Continue with structure checks and .NET build/tests when possible.
+Godot is retired from the active workflow. Validation should not require or invoke Godot; legacy Godot files may remain in the repository for reference until they are safely removed.
 
 ## Review Checklist
 

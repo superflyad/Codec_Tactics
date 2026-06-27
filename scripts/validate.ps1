@@ -18,17 +18,15 @@ $requiredPaths = @(
     "CHANGELOG.md",
     "ROADMAP.md",
     "CODEX.md",
-    "project.godot",
-    "Codec_Tactics.csproj",
     "docs",
     "docs/game-design.md",
     "docs/architecture.md",
     "docs/network-integrity.md",
     "docs/milestones.md",
     "docs/visible-prototype.md",
-    "scenes/Main.tscn",
     "scripts",
     "src/CodecTactics.Core/CodecTactics.Core.csproj",
+    "src/CodecTactics.MonoGame/CodecTactics.MonoGame.csproj",
     "tests/CodecTactics.Core.Tests/CodecTactics.Core.Tests.csproj",
     "Codec_Tactics.sln"
 )
@@ -44,20 +42,7 @@ if ($missing.Count -gt 0) {
     Write-Error "Missing required path(s): $($missing -join ', ')"
 }
 
-$godot = Get-Command godot -ErrorAction SilentlyContinue
-if ($null -eq $godot) {
-    $godot = Get-Command godot4 -ErrorAction SilentlyContinue
-}
-
-if ($null -eq $godot) {
-    Write-Host "Godot CLI not found on PATH; skipping Godot editor validation."
-} else {
-    Write-Host "Godot CLI found at $($godot.Source)"
-    & $godot.Source --headless --path $repoRoot --build-solutions --quit
-    if ($LASTEXITCODE -ne 0) {
-        throw "Godot editor validation failed."
-    }
-}
+Write-Host "Godot validation is retired; legacy Godot files are intentionally not part of the active workflow."
 
 if (-not $SkipDotNet) {
     dotnet format --version *> $null

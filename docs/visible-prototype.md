@@ -1,6 +1,6 @@
-# Visible Prototype
+# Legacy Godot Prototype
 
-Milestone 1.5 added the first launchable Godot scene for the 2D network prototype. Later milestones keep the same temporary scene and connect it to the strategic node, energy, corruption-pressure, integrity, threat, collapse, and vertical-slice mission rules.
+Milestone 1.5 added the first launchable Godot scene for the 2D network prototype. That prototype is now retired from the active workflow. The files remain for reference, but new frontend work should use `src/CodecTactics.MonoGame`.
 
 ## Scope
 
@@ -33,7 +33,7 @@ Excluded:
 
 ## Launch
 
-Open this repository with Godot .NET 4.x or newer and run the configured main scene:
+The Godot launch path is legacy-only:
 
 ```text
 res://scenes/Main.tscn
@@ -45,14 +45,14 @@ The scene script is:
 res://src/CodecTactics.Godot/PrototypeScene.cs
 ```
 
-The root Godot C# project references `src/CodecTactics.Core` so scene scripts can call the tested domain model directly.
+The root Godot C# project referenced `src/CodecTactics.Core` so scene scripts could call the tested domain model directly.
 
 ## Validation
 
-Run the standard repository validation:
+Run the standard repository validation for the active MonoGame workflow:
 
 ```powershell
 .\scripts\validate.ps1
 ```
 
-If `godot` or `godot4` is on `PATH`, validation runs Godot in headless mode and builds the Godot C# solution. If Godot CLI is not available, the script reports the skip clearly and continues with structure checks plus .NET build/tests.
+Validation no longer invokes Godot. It checks repository structure, builds the .NET solution, and runs the core tests.

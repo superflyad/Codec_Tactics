@@ -13,7 +13,7 @@ Exit criteria:
 
 ## Milestone 1: Playable 2D Network Prototype
 
-Create a minimal 2D network map with player expansion. The current implementation is a pure C# prototype so the core loop can be tested without Godot.
+Create a minimal 2D network map with player expansion. The current implementation is a pure C# prototype so the core loop can be tested without frontend dependencies.
 
 Exit criteria:
 
@@ -31,7 +31,7 @@ Current mechanics:
 
 Current limitations:
 
-- The connected Godot scene is intentionally minimal and debug-style.
+- The connected frontend is intentionally minimal and debug-style.
 - No layered board, cube visualization, advanced AI, save/load, resources, or polish.
 - Win/loss conditions are placeholders only.
 
@@ -49,11 +49,11 @@ Exit criteria:
 - End Turn calls current core behavior and updates the board.
 - HUD text shows turn, phase, status, and result state.
 
-Current limitations:
+Current status:
 
 - End Turn was a placeholder pass action in Milestone 1.5; Milestone 2 replaces it with a real core end-turn action.
 - Rendering is temporary debug-style UI.
-- Godot validation is optional when the CLI is unavailable.
+- This Godot frontend is retired from the active workflow and retained only as legacy reference.
 
 ## Milestone 2: Strategic 2D Node Decisions
 
@@ -68,7 +68,7 @@ Exit criteria:
 - Corruption pressure increases on enemy turns and expands deterministically.
 - Firewall nodes delay corruption by requiring additional pressure.
 - End Turn resolves a real enemy/corruption turn.
-- Godot displays energy, pressure, ownership, node types, action failures, costs, and corruption spread results.
+- The frontend displays energy, pressure, ownership, node types, action failures, costs, and corruption spread results.
 - Core tests cover node types, energy, Relay reach, Firewall resistance, pressure progression, and deterministic turn progression.
 
 Current limitations:
@@ -89,7 +89,7 @@ Exit criteria:
 - Nodes become unstable when threat exceeds integrity.
 - Persistent instability collapses nodes to corruption deterministically.
 - Corruption expansion prioritizes unstable, weak, and exposed targets deterministically.
-- Godot displays integrity, threat, unstable nodes, danger reasons, and collapse events.
+- The frontend displays integrity, threat, unstable nodes, danger reasons, and collapse events.
 - Core tests cover the integrity, threat, instability, collapse, and targeting contracts.
 
 Current limitations:

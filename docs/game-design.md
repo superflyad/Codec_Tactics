@@ -39,4 +39,4 @@ Enemy pressure comes from access. Badly planned routes, overextended connections
 - No production art.
 - No layers or cube visualization.
 - No advanced AI, save/load, or scenario polish.
-- No full Godot scene implementation.
+- No production frontend implementation.
