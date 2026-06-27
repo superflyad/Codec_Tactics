@@ -98,7 +98,7 @@ Current limitations:
 - The board is still a fixed 4x4 2D grid.
 - No layers, cube visualization, advanced graphics, save/load, or advanced AI.
 
-## Milestone 3.5: Layers
+## Future Milestone: Layers
 
 Add deeper network layers.
 
@@ -108,9 +108,22 @@ Exit criteria:
 - Player can transition between layers.
 - Deeper layers increase complexity.
 
-## Milestone 4: Cube Visualization
+## Milestone 4: Visual Identity
 
-Prototype cube-inspired visualization.
+Replace the grid-first MonoGame presentation with a network-first visual identity for the active vertical-slice mission.
+
+Exit criteria:
+
+- The authored board renders as an irregular digital network topology rather than a square-cell grid.
+- Connections are first-class animated visual elements.
+- Node ownership, type, objective, corruption, instability, and selection state are readable through silhouette, color, glow, outline, and compact indicators before text.
+- Camera zoom, pan, and recenter behavior keeps the network comfortable to inspect.
+- The HUD remains concise so the board is the primary visual focus.
+- Core gameplay rules, layers, cube visualization, balance, and Godot legacy files remain unchanged.
+
+## Future Visualization: Cube
+
+Prototype cube-inspired visualization after the flat network rules and mission feel are stable.
 
 Exit criteria:
 
@@ -118,12 +131,15 @@ Exit criteria:
 - 2D and cube visualization share the same underlying model.
 - Selection and feedback remain readable.
 
-## Milestone 5: Vertical Slice
+## Milestone 5: Interaction, Animation, and Audio
 
-Deliver a complete small scenario.
+Polish the active MonoGame vertical slice without changing mechanics.
 
 Exit criteria:
 
-- Scenario includes expansion, corruption, layers, and win/loss conditions.
-- Validation covers critical rule behavior.
-- Documentation reflects the implemented slice.
+- Hover, selection, deselection, ownership changes, capture, corruption, objective progress, integrity/threat feedback, camera movement, and mission results have responsive animation or visual effects.
+- The network has idle motion, directional packet flow, relay amplification, corruption pulses, and readable event pulses.
+- Successful and invalid actions produce immediate visual and audio feedback.
+- Audio is routed through a centralized presentation service and backed by committed synthesized WAV assets.
+- Core gameplay rules, balance, mission shape, layers, cube visualization, and Godot legacy files remain unchanged.
+- Validation covers existing deterministic rule behavior and the MonoGame project builds cleanly.

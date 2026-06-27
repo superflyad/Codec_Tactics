@@ -87,4 +87,6 @@ Milestone 1 corruption expands from enemy-owned nodes into one adjacent neutral 
 
 `src/CodecTactics.MonoGame` is the active frontend project. It references `CodecTactics.Core`, renders current board state, and routes player input through core commands.
 
+Milestone 5 keeps animation, visual effects, camera feel, and audio in the MonoGame layer. `AudioService` owns playback of committed sound assets, while `Game1` translates core action results into presentation events such as pulse rings, shake, ownership interpolation, and sound cues. The core model remains deterministic and does not know about rendering, animation timing, or audio.
+
 The previous Godot scene and project files are legacy artifacts. They should not be used for validation or new active frontend work unless a future task explicitly reopens that path.

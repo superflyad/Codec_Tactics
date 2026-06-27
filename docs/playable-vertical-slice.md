@@ -69,6 +69,8 @@ Unstable player-owned nodes render with a pulsing orange danger ring. The object
 
 Milestone 4 changes the active presentation from grid-first to network-first without changing mission rules. Nodes render at authored visual topology positions instead of square-cell centers. Connections are first-class animated links with ownership and corruption coloration. Core, Resource, Relay, Firewall, Objective, Standard, and Corrupted nodes use distinct silhouettes, iconography, glow, outline, and overlays before text. The camera supports smooth zoom, right or middle mouse panning, and `C` recentering so the board remains the visual focus.
 
+Milestone 5 keeps the same mission and rule set, then improves game feel around the existing interactions. Hovering, selection, invalid clicks, successful actions, ownership changes, captures, corruption focus, collapse, objective progress, victory, and defeat now produce animation, pulse effects, or shake feedback. Active links carry directional packets, Relay links emit amplified packet bursts, corrupted nodes shimmer with an extra disruption ring, and the objective transmits visible progress pulses. Audio playback is centralized in the MonoGame `AudioService` and uses committed synthesized digital WAV assets, including an ambient network hum and specific cues for hover, selection, confirmation, invalid actions, capture, reinforcement, weakening, corruption, objective progress, victory, defeat, and reset.
+
 ## Tests
 
 Core tests cover:

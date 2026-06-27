@@ -4,7 +4,7 @@ Codec_Tactics is an early-stage C# MonoGame project for a turn-based network tac
 
 The player builds a growing 2D network. Each expansion opens useful paths, but poor choices can expose routes for enemy corruption. Future milestones may explore layers and cube-inspired visualization, but the active playable mission intentionally keeps gameplay flat and focused.
 
-This repository is currently at Milestone 4: visual identity. It contains a small deterministic core loop in pure C# plus a MonoGame frontend that renders the authored mission as a living digital network rather than a grid-first debug board. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and new mechanics.
+This repository is currently at Milestone 5: interaction, animation, and audio. It contains a small deterministic core loop in pure C# plus a MonoGame frontend that renders the authored mission as a responsive living digital network rather than a grid-first debug board. It still intentionally avoids layers, cube visualization, advanced AI, save/load, real art, and new mechanics.
 
 ## Current Foundation
 
@@ -14,7 +14,8 @@ This repository is currently at Milestone 4: visual identity. It contains a smal
 - Documentation for architecture, milestones, contribution workflow, and Codex usage
 - Pure C# 2D network prototype with configurable board definitions, adjacent connections, ownership, node types, energy costs, network integrity, threat, instability, deterministic corruption pressure, collapse, turn counter, and placeholder outcomes
 - `BoardDefinition` and `GameConfiguration` models that keep the default 4x4 prototype behavior data-driven and prepare the core for later layers and cube faces
-- Network-first MonoGame presentation that draws the authored mission through deterministic topology positions, animated links, smooth camera zoom/pan/recenter, silhouette/icon node identities, corruption overlays, concise HUD indicators, hover details, highlights, mission log, and win/loss banner while routing input through `CodecTactics.Core`
+- Network-first MonoGame presentation that draws the authored mission through deterministic topology positions, animated packet flow, relay amplification pulses, smooth camera zoom/pan/recenter, silhouette/icon node identities, corruption overlays, event pulse rings, hover/selection/capture transitions, concise HUD indicators, hover details, highlights, mission log, and win/loss banner while routing input through `CodecTactics.Core`
+- Centralized MonoGame `AudioService` with committed synthesized digital WAV assets for hover, selection, confirmation, invalid actions, capture, reinforcement, weakening, corruption, objective progress, victory, defeat, reset, and ambient network hum
 - One authored vertical-slice mission with a fixed board, objective hold win condition, loss states, player feedback, and restartable game loop
 - Legacy Godot files remain for reference only and are not part of validation or the active frontend workflow
 
@@ -75,7 +76,7 @@ The app launches the vertical-slice mission, `Secure the Uplink`.
 - Win: claim and hold the objective for the required hold turns.
 - Lose: the player core collapses or corruption captures the objective.
 
-Use the action buttons or number keys to choose Claim, Reinforce, or Weaken. The selected action is highlighted in the HUD, valid targets pulse on the network, and invalid targets are visually suppressed while the hover tooltip explains the block. The objective has a pulsing gold ring, unstable nodes pulse orange, corrupted nodes carry a red disruption mark, and the selected node receives a white ring. Click a node to apply the selected action, or use End Turn to let corruption act without spending energy. Hover nodes to inspect ownership, type, integrity, threat, cost, expected action result, blocked reason, instability, and danger reason. The board now relies on silhouettes, iconography, color, glow, animated links, and compact bars rather than abbreviated node labels. Restart Mission resets the authored board deterministically.
+Use the action buttons or number keys to choose Claim, Reinforce, or Weaken. The selected action is highlighted in the HUD, valid targets pulse on the network, and invalid targets are visually suppressed while the hover tooltip explains the block. The objective has a pulsing gold ring, unstable nodes pulse orange, corrupted nodes carry a red disruption mark, and the selected node receives a white ring. Click a node to apply the selected action, or use End Turn to let corruption act without spending energy. Hover nodes to inspect ownership, type, integrity, threat, cost, expected action result, blocked reason, instability, and danger reason. The board uses hover/selection easing, capture and corruption shockwaves, relay packet amplification, invalid-action shake, objective pulses, screen-level mission-result emphasis, and synthesized digital audio cues for immediate feedback. Restart Mission resets the authored board deterministically.
 
 ## Validate
 
@@ -137,10 +138,11 @@ Codec_Tactics.sln             .NET validation solution
 - The HUD shows selected action, turn, energy, objective progress, corruption pressure, result feedback, invalid move reasons, and recent action history.
 - Restart Mission starts a fresh deterministic copy of the authored mission.
 - Milestone 4 is presentation-only: it establishes Codec_Tactics' network-first visual identity without adding layers, cube visualization, Godot work, or new mechanics.
+- Milestone 5 is presentation-only: it adds responsive interaction animation, event visual effects, living-network motion, and centralized real audio assets without changing core gameplay rules or mission balance.
 
 ## Current Limitations
 
-- MonoGame visuals now establish the intended network-first identity, but they are still code-drawn prototype art rather than final production assets.
+- MonoGame visuals and audio now establish the intended responsive network feel, but the visuals are still code-drawn prototype art rather than final production assets.
 - Legacy Godot files remain in the repository but are not active workflow targets.
 - The playable slice is still one authored 5x5 scenario.
 - Network integrity and threat formulas are prototype balance values.

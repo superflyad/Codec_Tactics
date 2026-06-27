@@ -91,6 +91,15 @@
 - Keep the pass presentation-only with no new gameplay rules, layers, cubes, or Godot work.
 - Status: implemented as the first visual identity pass for the MonoGame vertical slice.
 
+## Milestone 5: Interaction, Animation, and Audio
+
+- Replace abrupt presentation changes with responsive hover, selection, ownership, capture, corruption, objective, and end-state animation.
+- Make the network feel alive through directional packet flow, relay amplification pulses, corruption pressure pulses, and idle node activity.
+- Add lightweight visual effects for valid actions, invalid actions, captures, reinforcements, weakening, corruption spread, objective progress, victory, and defeat.
+- Add a centralized MonoGame audio service with committed synthesized digital sound assets instead of placeholders.
+- Keep the pass presentation-only with no new gameplay rules, balance changes, layers, cubes, or Godot work.
+- Status: implemented as the interaction, animation, and audio polish pass for the MonoGame vertical slice.
+
 ## Milestone 3.5: Layers
 
 - Add deeper network layers with increasing complexity.
@@ -103,7 +112,7 @@
 - Keep core rules separate from rendering.
 - Prototype camera, selection, and readable node state display.
 
-## Milestone 5: Vertical Slice
+## Future Vertical Slice Expansion
 
 - Expand the playable mission into a broader slice after layers and cube visualization exist.
 - Combine expansion, corruption, layers, and visualization.

@@ -73,6 +73,9 @@ public class Game1 : Game
     private readonly Dictionary<TextKey, Texture2D> _textCache = new();
     private readonly List<string> _actionLog = new();
     private readonly List<ButtonDefinition> _buttons = new();
+    private readonly AudioService _audio = new();
+    private readonly Dictionary<NodeId, NodeVisualState> _nodeVisuals = new();
+    private readonly List<VisualEffect> _visualEffects = new();
 
     private SpriteBatch _spriteBatch = default!;
     private Texture2D _pixel = default!;
@@ -83,6 +86,7 @@ public class Game1 : Game
     private string _status = "Mission ready. Expand toward the uplink.";
     private string _invalidReason = string.Empty;
     private NodeState _hoveredNode;
+    private NodeId? _lastHoveredNodeId;
     private NodeId? _selectedNodeId;
     private Vector2 _cameraCenter;
     private Vector2 _targetCameraCenter;
@@ -112,6 +116,7 @@ public class Game1 : Game
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData(new[] { XnaColor.White });
         _spriteBatch = new SpriteBatch(GraphicsDevice);
+        _audio.Load(System.IO.Path.Combine(AppContext.BaseDirectory, Content.RootDirectory));
     }
 
     protected override void UnloadContent()
@@ -121,6 +126,7 @@ public class Game1 : Game
             texture.Dispose();
         }
 
+        _audio.Dispose();
         base.UnloadContent();
     }
 
@@ -139,6 +145,17 @@ public class Game1 : Game
         _cameraCenter = Vector2.Lerp(_cameraCenter, _targetCameraCenter, 0.18f);
         _zoom = MathHelper.Lerp(_zoom, _targetZoom, 0.18f);
         _hoveredNode = GetNodeAt(mouse.Position);
+        if (_hoveredNode?.Id != _lastHoveredNodeId)
+        {
+            _lastHoveredNodeId = _hoveredNode?.Id;
+            if (_hoveredNode is not null)
+            {
+                GetNodeVisual(_hoveredNode.Id).HoverFlash = 1f;
+                _audio.Play(AudioCue.Hover, 0.28f);
+            }
+        }
+
+        UpdatePresentation((float)gameTime.ElapsedGameTime.TotalSeconds);
 
         if (WasPressed(keyboard, Keys.D1))
         {
@@ -154,7 +171,7 @@ public class Game1 : Game
         }
         else if (WasPressed(keyboard, Keys.Space))
         {
-            ApplyResult(_game.EndPlayerTurnWithResult());
+            ResolveAction(() => _game.EndPlayerTurnWithResult());
         }
         else if (WasPressed(keyboard, Keys.R))
         {
@@ -206,6 +223,7 @@ public class Game1 : Game
             DrawNode(node);
         }
 
+        DrawVisualEffects();
         DrawText("CODEC_TACTICS", viewport.X + 18, viewport.Y + 16, 22, TextColor);
         DrawText(_game.ObjectiveText, viewport.X + 20, viewport.Y + 48, 14, MutedTextColor, viewport.Width - 42);
     }
@@ -261,6 +279,14 @@ public class Game1 : Game
             var particle = new XnaRectangle((int)position.X - 4, (int)position.Y - 4, 8, 8);
             Fill(particle, flowColor);
         }
+
+        if (startNode.Type == NodeType.Relay || endNode.Type == NodeType.Relay)
+        {
+            var t = (float)((_totalSeconds * 0.82d + connection.First.X * 0.07d + connection.Second.Y * 0.11d) % 1d);
+            var position = Vector2.Lerp(start, end, t);
+            DrawCircle(position, 7f + 5f * GetPulse(7.5f, t), new XnaColor(96, 211, 255, 126));
+            DrawCircleOutline(position, 15f, new XnaColor(96, 211, 255, 102), 2);
+        }
     }
 
     private void DrawNode(NodeState node)
@@ -275,6 +301,10 @@ public class Game1 : Game
         var ownerColor = GetOwnerColor(node.Owner);
         var typeColor = GetTypeColor(node, isObjective);
         var pulse = GetPulse(3.1f, node.Id.X * 0.21f + node.Id.Y * 0.13f);
+        var visual = GetNodeVisual(node.Id);
+        ownerColor = Blend(GetOwnerColor(visual.PreviousOwner), ownerColor, EaseOut(visual.OwnerTransition));
+        radius += visual.HoverAmount * 5f + visual.SelectAmount * 4f + visual.SelectFlash * 6f + visual.ImpactFlash * 8f;
+        center += GetShakeOffset(visual.Shake, node.Id);
 
         DrawCircleOutline(center, radius + 15f + pulse * 5f, new XnaColor(typeColor.R, typeColor.G, typeColor.B, node.Owner == NodeOwner.Neutral ? (byte)42 : (byte)95), 2);
         DrawCircleOutline(center, radius + 8f, new XnaColor(ownerColor.R, ownerColor.G, ownerColor.B, (byte)105), 3);
@@ -311,12 +341,12 @@ public class Game1 : Game
 
         if (isSelected)
         {
-            DrawCircleOutline(center, radius + 31f, XnaColor.White, 3);
+            DrawCircleOutline(center, radius + 31f + visual.SelectAmount * 6f, XnaColor.White, 3);
         }
 
         if (isHovered)
         {
-            DrawCircleOutline(center, radius + 37f, AccentColor, 3);
+            DrawCircleOutline(center, radius + 37f + visual.HoverFlash * 7f, AccentColor, 3);
         }
     }
 
@@ -392,6 +422,32 @@ public class Game1 : Game
         var color = new XnaColor((byte)255, (byte)116, (byte)128, (byte)(170 + pulse * 55));
         DrawLine(center + new Vector2(-radius * 0.42f, -radius * 0.42f), center + new Vector2(radius * 0.42f, radius * 0.42f), color, 5);
         DrawLine(center + new Vector2(radius * 0.42f, -radius * 0.42f), center + new Vector2(-radius * 0.42f, radius * 0.42f), color, 5);
+        DrawCircleOutline(center, radius + 10f + pulse * 12f, new XnaColor(255, 82, 104, 94), 2);
+    }
+
+    private void DrawVisualEffects()
+    {
+        foreach (var effect in _visualEffects)
+        {
+            var progress = Math.Clamp(1f - effect.TimeRemaining / effect.Duration, 0f, 1f);
+            var eased = EaseOut(progress);
+            var center = WorldToScreen(GetNodeWorldPosition(effect.NodeId));
+            var radius = effect.StartRadius + (effect.EndRadius - effect.StartRadius) * eased;
+            var alpha = (byte)Math.Clamp(effect.Color.A * (1f - progress), 0f, 255f);
+            var color = new XnaColor(effect.Color.R, effect.Color.G, effect.Color.B, alpha);
+
+            DrawCircleOutline(center, radius * _zoom, color, effect.Thickness);
+            if (effect.Kind == VisualEffectKind.Burst)
+            {
+                var spokeLength = radius * _zoom * 0.42f;
+                for (var i = 0; i < 8; i++)
+                {
+                    var angle = MathHelper.TwoPi * i / 8f + progress * 0.8f;
+                    var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+                    DrawLine(center + direction * spokeLength, center + direction * (spokeLength + 16f), color, 2);
+                }
+            }
+        }
     }
 
     private void DrawHud()
@@ -536,7 +592,7 @@ public class Game1 : Game
             }
             else if (button.Action == ButtonAction.EndTurn)
             {
-                ApplyResult(_game.EndPlayerTurnWithResult());
+                ResolveAction(() => _game.EndPlayerTurnWithResult());
             }
             else if (button.Action == ButtonAction.Restart)
             {
@@ -553,7 +609,8 @@ public class Game1 : Game
         }
 
         _selectedNodeId = node.Id;
-        ApplyResult(_game.ExecutePlayerAction(_selectedAction, node.Id));
+        GetNodeVisual(node.Id).SelectFlash = 1f;
+        ResolveAction(() => _game.ExecutePlayerAction(_selectedAction, node.Id), node.Id);
     }
 
     private void HandleCameraInput(MouseState mouse, KeyboardState keyboard)
@@ -609,6 +666,7 @@ public class Game1 : Game
         _invalidReason = string.Empty;
         _status = $"{action}: {CountValidTargetsForSelectedAction()} target(s) available.";
         Log(_status);
+        _audio.Play(AudioCue.Select, 0.48f);
     }
 
     private void RestartMission()
@@ -621,13 +679,176 @@ public class Game1 : Game
         _actionLog.Clear();
         RecenterCamera(immediate: false);
         Log("Network reset.");
+        _nodeVisuals.Clear();
+        _visualEffects.Clear();
+        _audio.Play(AudioCue.Reset, 0.6f);
     }
 
-    private void ApplyResult(GameActionResult result)
+    private void ResolveAction(Func<GameActionResult> action, NodeId? actedNode = null)
+    {
+        var beforeOwners = SnapshotOwners();
+        ApplyResult(action(), beforeOwners, actedNode);
+    }
+
+    private void ApplyResult(GameActionResult result, IReadOnlyDictionary<NodeId, NodeOwner> beforeOwners = null, NodeId? actedNode = null)
     {
         _status = FormatStatusMessage(result);
         _invalidReason = result.Succeeded ? string.Empty : result.Message;
         Log(FormatLogMessage(result));
+        ApplyPresentationFeedback(result, beforeOwners, actedNode);
+    }
+
+    private void ApplyPresentationFeedback(GameActionResult result, IReadOnlyDictionary<NodeId, NodeOwner> beforeOwners, NodeId? actedNode)
+    {
+        if (!result.Succeeded)
+        {
+            _audio.Play(AudioCue.Invalid, 0.58f);
+            if (actedNode.HasValue)
+            {
+                var visual = GetNodeVisual(actedNode.Value);
+                visual.Shake = 1f;
+                SpawnPulse(actedNode.Value, WarningColor, VisualEffectKind.Ring, 28f, 78f, 0.34f, 3);
+            }
+
+            return;
+        }
+
+        if (actedNode.HasValue)
+        {
+            var cue = _selectedAction switch
+            {
+                PlayerActionMode.Reinforce => AudioCue.Reinforce,
+                PlayerActionMode.Weaken => AudioCue.Weaken,
+                _ => AudioCue.Capture
+            };
+            _audio.Play(cue, 0.72f);
+            var color = _selectedAction == PlayerActionMode.Weaken ? WarningColor : ValidMoveColor;
+            SpawnPulse(actedNode.Value, color, VisualEffectKind.Burst, 36f, 112f, 0.5f, 3);
+            GetNodeVisual(actedNode.Value).ImpactFlash = 1f;
+        }
+        else
+        {
+            _audio.Play(AudioCue.Confirm, 0.52f);
+        }
+
+        if (beforeOwners is not null)
+        {
+            foreach (var node in _game.Board.Nodes)
+            {
+                if (!beforeOwners.TryGetValue(node.Id, out var previousOwner) || previousOwner == node.Owner)
+                {
+                    continue;
+                }
+
+                var visual = GetNodeVisual(node.Id);
+                visual.PreviousOwner = previousOwner;
+                visual.OwnerTransition = 0f;
+                visual.ImpactFlash = 1f;
+                SpawnPulse(node.Id, node.Owner == NodeOwner.Enemy ? LossColor : ValidMoveColor, VisualEffectKind.Burst, 40f, 128f, 0.62f, 4);
+            }
+        }
+
+        if (result.CorruptionTarget.HasValue)
+        {
+            _audio.Play(AudioCue.Corruption, 0.68f);
+            SpawnPulse(result.CorruptionTarget.Value, LossColor, VisualEffectKind.Burst, 42f, 135f, 0.68f, 4);
+        }
+
+        if (result.CorruptionFocusTarget.HasValue)
+        {
+            SpawnPulse(result.CorruptionFocusTarget.Value, WarningColor, VisualEffectKind.Ring, 36f, 98f, 0.48f, 3);
+        }
+
+        if (result.CollapsedNodes is { Count: > 0 })
+        {
+            _audio.Play(AudioCue.Corruption, 0.78f);
+            foreach (var collapsed in result.CollapsedNodes)
+            {
+                SpawnPulse(collapsed, LossColor, VisualEffectKind.Burst, 48f, 150f, 0.74f, 5);
+            }
+        }
+
+        if (_game.ObjectiveNode.HasValue && result.ObjectiveHoldTurns > 0)
+        {
+            _audio.Play(AudioCue.Objective, 0.5f);
+            SpawnPulse(_game.ObjectiveNode.Value, ObjectiveColor, VisualEffectKind.Ring, 48f, 142f, 0.72f, 4);
+        }
+
+        if (result.Result == GameResult.PlayerWin)
+        {
+            _audio.Play(AudioCue.Victory, 0.86f);
+            if (_game.ObjectiveNode.HasValue)
+            {
+                SpawnPulse(_game.ObjectiveNode.Value, WinColor, VisualEffectKind.Burst, 58f, 190f, 0.95f, 5);
+            }
+        }
+        else if (result.Result == GameResult.PlayerLoss)
+        {
+            _audio.Play(AudioCue.Defeat, 0.86f);
+            SpawnPulse(_game.PlayerCore, LossColor, VisualEffectKind.Burst, 58f, 190f, 0.95f, 5);
+        }
+    }
+
+    private void UpdatePresentation(float elapsedSeconds)
+    {
+        var selectedNode = _selectedNodeId;
+        var hoveredNode = _hoveredNode?.Id;
+
+        foreach (var node in _game.Board.Nodes)
+        {
+            var visual = GetNodeVisual(node.Id);
+            visual.HoverAmount = Approach(visual.HoverAmount, hoveredNode == node.Id ? 1f : 0f, elapsedSeconds * 10f);
+            visual.SelectAmount = Approach(visual.SelectAmount, selectedNode == node.Id ? 1f : 0f, elapsedSeconds * 8f);
+            visual.OwnerTransition = Approach(visual.OwnerTransition, 1f, elapsedSeconds * 3.8f);
+            visual.HoverFlash = Approach(visual.HoverFlash, 0f, elapsedSeconds * 4.5f);
+            visual.SelectFlash = Approach(visual.SelectFlash, 0f, elapsedSeconds * 4.8f);
+            visual.ImpactFlash = Approach(visual.ImpactFlash, 0f, elapsedSeconds * 3.4f);
+            visual.Shake = Approach(visual.Shake, 0f, elapsedSeconds * 6.8f);
+            if (visual.OwnerTransition >= 1f)
+            {
+                visual.PreviousOwner = node.Owner;
+            }
+        }
+
+        for (var i = _visualEffects.Count - 1; i >= 0; i--)
+        {
+            var effect = _visualEffects[i];
+            effect.TimeRemaining -= elapsedSeconds;
+            if (effect.TimeRemaining <= 0f)
+            {
+                _visualEffects.RemoveAt(i);
+            }
+            else
+            {
+                _visualEffects[i] = effect;
+            }
+        }
+    }
+
+    private IReadOnlyDictionary<NodeId, NodeOwner> SnapshotOwners()
+    {
+        return _game.Board.Nodes.ToDictionary(node => node.Id, node => node.Owner);
+    }
+
+    private NodeVisualState GetNodeVisual(NodeId nodeId)
+    {
+        if (_nodeVisuals.TryGetValue(nodeId, out var visual))
+        {
+            return visual;
+        }
+
+        visual = new NodeVisualState(_game.Board.GetNode(nodeId).Owner);
+        _nodeVisuals[nodeId] = visual;
+        return visual;
+    }
+
+    private void SpawnPulse(NodeId nodeId, XnaColor color, VisualEffectKind kind, float startRadius, float endRadius, float duration, int thickness)
+    {
+        _visualEffects.Add(new VisualEffect(nodeId, color, kind, startRadius, endRadius, duration, duration, thickness));
+        if (_visualEffects.Count > 48)
+        {
+            _visualEffects.RemoveAt(0);
+        }
     }
 
     private ActionPreview GetActionPreview(NodeState node)
@@ -986,6 +1207,33 @@ public class Game1 : Game
         return (MathF.Sin((float)_totalSeconds * speed + offset) + 1f) / 2f;
     }
 
+    private Vector2 GetShakeOffset(float strength, NodeId nodeId)
+    {
+        if (strength <= 0f)
+        {
+            return Vector2.Zero;
+        }
+
+        var phase = (float)_totalSeconds * 42f + nodeId.X * 1.7f + nodeId.Y * 2.3f;
+        return new Vector2(MathF.Sin(phase), MathF.Cos(phase * 1.37f)) * strength * 7f;
+    }
+
+    private static float Approach(float current, float target, float amount)
+    {
+        if (current < target)
+        {
+            return Math.Min(target, current + amount);
+        }
+
+        return Math.Max(target, current - amount);
+    }
+
+    private static float EaseOut(float value)
+    {
+        value = Math.Clamp(value, 0f, 1f);
+        return 1f - MathF.Pow(1f - value, 3f);
+    }
+
     private void DrawCenteredText(string text, int x, int y, int width, int height, int size, XnaColor color)
     {
         var texture = GetTextTexture(text, size, color);
@@ -1197,6 +1445,39 @@ public class Game1 : Game
     private readonly record struct ButtonDefinition(XnaRectangle Bounds, ButtonAction Action, PlayerActionMode? PlayerAction);
 
     private readonly record struct ActionPreview(bool IsValid, string Reason, string Cost, string SuccessText, int EnergyCost);
+
+    private sealed class NodeVisualState
+    {
+        public NodeVisualState(NodeOwner owner)
+        {
+            PreviousOwner = owner;
+            OwnerTransition = 1f;
+        }
+
+        public NodeOwner PreviousOwner { get; set; }
+
+        public float OwnerTransition { get; set; }
+
+        public float HoverAmount { get; set; }
+
+        public float HoverFlash { get; set; }
+
+        public float SelectAmount { get; set; }
+
+        public float SelectFlash { get; set; }
+
+        public float ImpactFlash { get; set; }
+
+        public float Shake { get; set; }
+    }
+
+    private record struct VisualEffect(NodeId NodeId, XnaColor Color, VisualEffectKind Kind, float StartRadius, float EndRadius, float Duration, float TimeRemaining, int Thickness);
+
+    private enum VisualEffectKind
+    {
+        Ring,
+        Burst
+    }
 
     private enum ButtonAction
     {
