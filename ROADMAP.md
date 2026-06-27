@@ -128,6 +128,16 @@
 - Keep synthesized audio cohesive by layering existing cues and modulating ambient network hum with mission pressure.
 - Status: implemented as the production presentation pass for the MonoGame vertical slice.
 
+## Milestone 8: Visual Identity Redesign
+
+- Redesign the visual language from first principles around one cohesive metaphor: fiber-optic infrastructure under live intrusion.
+- Document the artistic vision, color language, shape language, network rendering rules, animation principles, lighting principles, effects philosophy, HUD philosophy, and audio direction in a dedicated visual style guide.
+- Make the network itself the most recognizable element through bundled fiber routes, pale signal cores, directional diamond packets, relay amplifier cells, subdued inactive fibers, and corruption-colored hostile pressure.
+- Redesign node silhouettes so gameplay objects remain identifiable before color or text: octagonal player core, hexagonal standard junction, diamond resource capacitor, triangular relay amplifier, shielded firewall, objective keystone, and corruption fracture marks.
+- Integrate the HUD as a compact lattice diagnostics rail instead of a generic floating panel.
+- Keep the pass presentation-only with no new gameplay rules, balance changes, tactical AI changes, mission generation changes, layers, cube visualization, save/load, or retired frontend work.
+- Status: implemented as the fiber-lattice identity pass for the MonoGame vertical slice.
+
 ## Milestone 3.5: Layers
 
 - Add deeper network layers with increasing complexity.

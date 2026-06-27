@@ -4,6 +4,7 @@ All notable changes to Codec_Tactics will be documented in this file.
 
 ## Unreleased
 
+- Added Milestone 8 visual identity redesign for the MonoGame frontend with a documented fiber-lattice art direction, bundled fiber route rendering, diamond signal packets, shape-first node silhouettes, corruption fracture marks, lattice diagnostics rail styling, and synchronized docs while preserving core gameplay behavior.
 - Added Milestone 7 production presentation polish for the MonoGame frontend with layered digital environment motion, active glowing communication channels, richer node lighting, objective beacons, relay amplifier pulses, corruption distortion, inertial camera movement, integrated trace-panel HUD styling, and pressure-reactive ambient hum while preserving core gameplay behavior.
 - Added Milestone 7 tactical AI with modular enemy decision scoring, configurable Aggressive/Defensive/Economic/Opportunistic/Corruption-Focused personalities, decision-quality difficulty, deterministic intent summaries, AI source/target visualization in MonoGame, and tests for deterministic decisions, valid actions, objective pressure, personality differences, difficulty quality, and stable summaries.
 - Added Milestone 5 interaction, animation, and audio polish for the MonoGame frontend with hover/selection easing, ownership transition feedback, action/capture/corruption/objective pulse effects, invalid-action shake, relay packet amplification, centralized `AudioService`, ambient network hum, and committed synthesized WAV cues while preserving core gameplay behavior.

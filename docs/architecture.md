@@ -100,6 +100,8 @@ Milestone 5 keeps animation, visual effects, camera feel, and audio in the MonoG
 
 The Milestone 7 production presentation pass extends the same separation. `Game1` owns layered digital environment rendering, active connection glow and packet trails, node lighting, corruption distortion, relay pulses, trace-panel styling, and inertial camera motion. `AudioService` remains the audio boundary and can modulate the existing synthesized ambient hum from presentation-readable state such as corruption pressure or objective progress. None of these systems create gameplay facts or change core rule evaluation.
 
+Milestone 8 keeps the same boundary while giving the presentation a documented visual identity. `docs/visual-style-guide.md` defines the fiber-lattice metaphor, color language, shape language, network rendering rules, animation principles, lighting principles, effects philosophy, HUD philosophy, and audio direction. `Game1` implements that language through bundled fiber routes, diamond signal packets, shape-first node silhouettes, corruption fracture marks, and a lattice diagnostics rail. These remain presentation facts only; core rules, mission generation, tactical AI, balance, layers, cube visualization, and save/load behavior are unchanged.
+
 The previous frontend scene and project files are legacy artifacts. They should not be used for validation or new active frontend work unless a future task explicitly reopens that path.
 
 The MonoGame frontend reads AI intent from `GameActionResult` and `NetworkGame.LastEnemyDecision`. It can highlight source-to-target pressure, target emphasis, profile, difficulty, and concise turn summaries without owning AI rules.

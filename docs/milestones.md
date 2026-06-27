@@ -193,3 +193,20 @@ Exit criteria:
 - Core gameplay rules, balance values, tactical AI behavior, mission generation, layers, cube visualization, and retired frontend scope remain unchanged.
 
 Status: implemented as the production presentation pass for the MonoGame vertical slice.
+
+## Milestone 8: Visual Identity Redesign
+
+Redesign the presentation language from first principles so a screenshot reads as Codec_Tactics before the title is visible.
+
+Exit criteria:
+
+- One cohesive artistic direction is documented and used in the active MonoGame frontend.
+- The network dominates the player's attention through bundled fiber routes, directional signal carriers, relay amplification, subdued inactive links, and corruption-specific hostile pressure.
+- Node types are distinguishable by silhouette before text or color: player core, standard node, resource, relay, firewall, objective, corruption, selection, and valid action states.
+- Color communicates ownership, danger, corruption, objectives, neutral state, and reinforcement without unnecessary brightness.
+- Background motion provides depth without fighting gameplay readability.
+- HUD elements feel attached to the lattice as diagnostics rather than separate floating software panels.
+- Animation, lighting, effects, and audio direction reinforce the chosen visual metaphor.
+- Core gameplay rules, balance values, tactical AI behavior, mission generation, layers, cube visualization, save/load, and retired frontend scope remain unchanged.
+
+Status: implemented as the fiber-lattice identity pass for the MonoGame vertical slice.

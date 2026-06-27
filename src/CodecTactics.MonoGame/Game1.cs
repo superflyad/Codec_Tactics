@@ -16,31 +16,33 @@ namespace CodecTactics.MonoGame;
 
 public class Game1 : Game
 {
-    private const int WindowWidth = 1360;
-    private const int WindowHeight = 860;
-    private const int HudWidth = 286;
+    private const int WindowWidth = 1600;
+    private const int WindowHeight = 940;
+    private const int HudWidth = 300;
     private const int ButtonHeight = 38;
     private const int TextPadding = 12;
     private const int MaxLogEntries = 4;
-    private const float NodeWorldRadius = 42f;
-    private const float CameraMargin = 120f;
+    private const float NodeWorldRadius = 28f;
+    private const float CameraMargin = 260f;
     private const float CameraFollow = 0.16f;
     private const float CameraInertia = 0.72f;
 
-    private static readonly XnaColor BackgroundColor = new(7, 10, 15);
-    private static readonly XnaColor NetworkSurfaceColor = new(6, 12, 20);
-    private static readonly XnaColor PanelColor = new(13, 19, 28, 222);
-    private static readonly XnaColor PanelBorderColor = new(56, 76, 97);
-    private static readonly XnaColor TextColor = new(232, 238, 247);
-    private static readonly XnaColor MutedTextColor = new(151, 164, 184);
-    private static readonly XnaColor AccentColor = new(75, 190, 235);
-    private static readonly XnaColor ValidMoveColor = new(92, 224, 145);
-    private static readonly XnaColor ObjectiveColor = new(249, 219, 83);
-    private static readonly XnaColor WarningColor = new(255, 154, 70);
-    private static readonly XnaColor LossColor = new(225, 68, 87);
-    private static readonly XnaColor WinColor = new(85, 210, 135);
-    private static readonly XnaColor NeutralColor = new(70, 82, 101);
-    private static readonly XnaColor DisabledOverlayColor = new(4, 7, 12, 150);
+    private static readonly XnaColor BackgroundColor = new(3, 6, 9);
+    private static readonly XnaColor NetworkSurfaceColor = new(5, 9, 13);
+    private static readonly XnaColor PanelColor = new(9, 13, 17, 224);
+    private static readonly XnaColor PanelBorderColor = new(69, 82, 80);
+    private static readonly XnaColor TextColor = new(232, 237, 229);
+    private static readonly XnaColor MutedTextColor = new(139, 153, 150);
+    private static readonly XnaColor AccentColor = new(72, 196, 184);
+    private static readonly XnaColor ValidMoveColor = new(105, 219, 156);
+    private static readonly XnaColor ObjectiveColor = new(241, 202, 88);
+    private static readonly XnaColor WarningColor = new(238, 127, 74);
+    private static readonly XnaColor LossColor = new(214, 54, 78);
+    private static readonly XnaColor WinColor = new(98, 214, 145);
+    private static readonly XnaColor NeutralColor = new(76, 87, 90);
+    private static readonly XnaColor DisabledOverlayColor = new(2, 5, 7, 164);
+    private static readonly XnaColor FiberGlassColor = new(34, 54, 56);
+    private static readonly XnaColor SignalCoreColor = new(202, 247, 229);
 
     private static readonly IReadOnlyDictionary<NodeId, Vector2> VerticalSliceTopology = new Dictionary<NodeId, Vector2>
     {
@@ -81,6 +83,7 @@ public class Game1 : Game
 
     private SpriteBatch _spriteBatch = default!;
     private Texture2D _pixel = default!;
+    private Texture2D _softCircle = default!;
     private MouseState _previousMouse;
     private KeyboardState _previousKeyboard;
     private ProceduralSeed _activeSeed = ProceduralSeed.FromText("codec-milestone-6");
@@ -120,6 +123,7 @@ public class Game1 : Game
     {
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData(new[] { XnaColor.White });
+        _softCircle = CreateSoftCircleTexture(128);
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         _audio.Load(System.IO.Path.Combine(AppContext.BaseDirectory, Content.RootDirectory));
     }
@@ -132,6 +136,8 @@ public class Game1 : Game
         }
 
         _audio.Dispose();
+        _pixel.Dispose();
+        _softCircle.Dispose();
         base.UnloadContent();
     }
 
@@ -205,7 +211,7 @@ public class Game1 : Game
     {
         GraphicsDevice.Clear(BackgroundColor);
 
-        _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        _spriteBatch.Begin(blendState: BlendState.NonPremultiplied, samplerState: SamplerState.LinearClamp);
         DrawNetwork();
         DrawHud();
         DrawHoverTooltip();
@@ -234,65 +240,61 @@ public class Game1 : Game
         }
 
         DrawVisualEffects();
-        DrawForegroundScan(viewport);
-        DrawText("CODEC_TACTICS", viewport.X + 18, viewport.Y + 16, 22, TextColor);
-        DrawText(_game.ObjectiveText, viewport.X + 20, viewport.Y + 48, 14, MutedTextColor, viewport.Width - 42);
+        DrawText("CODEC_TACTICS", viewport.X + 18, viewport.Y + 16, 20, TextColor);
+        DrawText(_game.ObjectiveText, viewport.X + 20, viewport.Y + 44, 13, MutedTextColor, viewport.Width - 42);
     }
 
     private void DrawNetworkBackdrop(XnaRectangle viewport)
     {
-        var slowDrift = (float)(_totalSeconds * 8d % 96d);
-        var fastDrift = (float)(_totalSeconds * 26d % 54d);
-        Fill(viewport, new XnaColor(4, 8, 14, 92));
+        var slowDrift = (float)(_totalSeconds * 5d % 128d);
+        var fastDrift = (float)(_totalSeconds * 18d % 72d);
+        Fill(viewport, new XnaColor(2, 7, 10, 132));
 
-        for (var y = viewport.Y; y < viewport.Bottom; y += 5)
+        for (var y = viewport.Y + 28; y < viewport.Bottom; y += 56)
         {
-            var alpha = (byte)(y % 30 == 0 ? 22 : 8);
-            Fill(new XnaRectangle(viewport.X, y, viewport.Width, 1), new XnaColor((byte)56, (byte)108, (byte)137, alpha));
+            Fill(new XnaRectangle(viewport.X, y, viewport.Width, 1), new XnaColor(57, 98, 92, 10));
         }
 
-        for (var x = viewport.X - 160; x < viewport.Right + 160; x += 96)
+        for (var x = viewport.X - 260; x < viewport.Right + 260; x += 240)
         {
             DrawLine(
                 new Vector2(x + slowDrift, viewport.Y),
-                new Vector2(x - 300 + slowDrift, viewport.Bottom),
-                new XnaColor(30, 70, 96, 50),
+                new Vector2(x - 180 + slowDrift, viewport.Bottom),
+                new XnaColor(38, 83, 78, 18),
                 1);
         }
 
-        for (var x = viewport.X - 80; x < viewport.Right + 80; x += 54)
+        for (var x = viewport.X - 120; x < viewport.Right + 120; x += 180)
         {
             DrawLine(
                 new Vector2(x - fastDrift, viewport.Y),
-                new Vector2(x + 170 - fastDrift, viewport.Bottom),
-                new XnaColor(13, 33, 52, 64),
+                new Vector2(x + 112 - fastDrift, viewport.Bottom),
+                new XnaColor(18, 37, 40, 16),
                 1);
         }
 
-        for (var y = viewport.Y + 64; y < viewport.Bottom; y += 72)
+        for (var y = viewport.Y + 120; y < viewport.Bottom; y += 180)
         {
-            var offset = (float)MathF.Sin((float)_totalSeconds * 0.8f + y * 0.03f) * 18f;
-            DrawLine(new Vector2(viewport.X, y + offset), new Vector2(viewport.Right, y - offset * 0.32f), new XnaColor(20, 45, 66, 42), 1);
+            var offset = MathF.Sin((float)_totalSeconds * 0.55f + y * 0.03f) * 14f;
+            DrawLine(new Vector2(viewport.X, y + offset), new Vector2(viewport.Right, y - offset * 0.25f), new XnaColor(55, 67, 50, 10), 1);
         }
 
-        DrawDistantNetworkActivity(viewport);
-        DrawBoardAtmosphere(viewport);
-        DrawRectangle(viewport, new XnaColor(42, 82, 108), 2);
+        DrawRectangle(viewport, new XnaColor(50, 77, 75), 1);
     }
 
     private void DrawDistantNetworkActivity(XnaRectangle viewport)
     {
-        for (var i = 0; i < 14; i++)
+        for (var i = 0; i < 8; i++)
         {
-            var phase = (float)(_totalSeconds * (0.16d + i * 0.017d) + i * 11.37d);
-            var x = viewport.X + 42 + (i * 83 + MathF.Sin(phase) * 24f) % Math.Max(1, viewport.Width - 84);
-            var y = viewport.Y + 98 + (i * 47 + MathF.Cos(phase * 0.73f) * 18f) % Math.Max(1, viewport.Height - 142);
-            var size = 3 + i % 4;
+            var phase = (float)(_totalSeconds * (0.11d + i * 0.013d) + i * 11.37d);
+            var x = viewport.X + 42 + (i * 71 + MathF.Sin(phase) * 19f) % Math.Max(1, viewport.Width - 84);
+            var y = viewport.Y + 98 + (i * 43 + MathF.Cos(phase * 0.73f) * 16f) % Math.Max(1, viewport.Height - 142);
+            var size = 3 + i % 5;
             var color = i % 5 == 0
-                ? new XnaColor(255, 109, 127, 54)
-                : new XnaColor(79, 177, 214, 50);
+                ? new XnaColor(228, 73, 91, 28)
+                : new XnaColor(92, 205, 184, 26);
+            DrawDiamond(new Vector2(x, y), size * 1.7f, new XnaColor(color.R, color.G, color.B, (byte)8), color);
             Fill(new XnaRectangle((int)x, (int)y, size * 5, 1), color);
-            Fill(new XnaRectangle((int)x, (int)y - size * 2, 1, size * 4), color);
         }
     }
 
@@ -300,16 +302,16 @@ public class Game1 : Game
     {
         var center = new Vector2(viewport.X + viewport.Width * 0.5f, viewport.Y + viewport.Height * 0.52f);
         var pulse = GetPulse(0.74f, 0.2f);
-        DrawCircle(center, Math.Min(viewport.Width, viewport.Height) * (0.42f + pulse * 0.02f), new XnaColor(21, 52, 70, 24));
-        DrawCircle(center + new Vector2(-viewport.Width * 0.23f, -viewport.Height * 0.12f), viewport.Height * 0.28f, new XnaColor(19, 85, 76, 22));
-        DrawCircle(center + new Vector2(viewport.Width * 0.26f, viewport.Height * 0.16f), viewport.Height * 0.3f, new XnaColor(83, 28, 47, 20));
+        DrawCircle(center, Math.Min(viewport.Width, viewport.Height) * (0.3f + pulse * 0.01f), new XnaColor(19, 52, 48, 8));
+        DrawCircle(center + new Vector2(-viewport.Width * 0.24f, -viewport.Height * 0.13f), viewport.Height * 0.2f, new XnaColor(29, 81, 66, 7));
+        DrawCircle(center + new Vector2(viewport.Width * 0.28f, viewport.Height * 0.17f), viewport.Height * 0.22f, new XnaColor(88, 31, 42, 7));
     }
 
     private void DrawForegroundScan(XnaRectangle viewport)
     {
         var scanY = viewport.Y + (int)((_totalSeconds * 74d) % viewport.Height);
-        Fill(new XnaRectangle(viewport.X, scanY, viewport.Width, 2), new XnaColor(104, 210, 240, 42));
-        Fill(new XnaRectangle(viewport.X, Math.Max(viewport.Y, scanY - 9), viewport.Width, 1), new XnaColor(104, 210, 240, 20));
+        Fill(new XnaRectangle(viewport.X, scanY, viewport.Width, 1), new XnaColor(151, 237, 214, 18));
+        Fill(new XnaRectangle(viewport.X, Math.Max(viewport.Y, scanY - 11), viewport.Width, 1), new XnaColor(151, 237, 214, 8));
     }
 
     private void DrawConnection(ConnectionState connection)
@@ -321,22 +323,13 @@ public class Game1 : Game
         var active = connection.IsActive;
         var baseColor = GetConnectionColor(startNode, endNode, active);
         var flowColor = GetFlowColor(startNode, endNode);
-        var thickness = Math.Max(2, (int)(active ? 6 * _zoom : 3 * _zoom));
+        var thickness = Math.Max(1, (int)(active ? 3 * _zoom : 1 * _zoom));
 
-        DrawLine(start, end, new XnaColor(1, 4, 9, 220), thickness + 9);
+        DrawLine(start, end, new XnaColor(1, 3, 5, 220), thickness + 7);
         if (active)
         {
-            DrawLine(start, end, new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)54), thickness + 17);
-            DrawLine(start, end, new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)84), thickness + 9);
-        }
-
-        DrawLine(start, end, baseColor, thickness);
-
-        if (!active)
-        {
-            var staticPulse = (byte)(46 + GetPulse(2.2f, connection.First.X + connection.Second.Y) * 36);
-            DrawLine(start, end, new XnaColor((byte)95, (byte)103, (byte)116, staticPulse), 1);
-            return;
+            DrawLine(start, end, new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)18), thickness + 10);
+            DrawLine(start, end, new XnaColor(FiberGlassColor.R, FiberGlassColor.G, FiberGlassColor.B, (byte)120), thickness + 4);
         }
 
         var edge = end - start;
@@ -348,29 +341,42 @@ public class Game1 : Game
 
         var direction = Vector2.Normalize(edge);
         var normal = new Vector2(-direction.Y, direction.X);
-        var packetCount = startNode.Type == NodeType.Relay || endNode.Type == NodeType.Relay ? 5 : 4;
+
+        if (!active)
+        {
+            var staticPulse = (byte)(34 + GetPulse(2.2f, connection.First.X + connection.Second.Y) * 28);
+            DrawLine(start, end, new XnaColor((byte)89, (byte)99, (byte)98, staticPulse), 1);
+            DrawLine(start + normal * 3f, end + normal * 3f, new XnaColor(49, 61, 62, 52), 1);
+            DrawLine(start - normal * 3f, end - normal * 3f, new XnaColor(49, 61, 62, 52), 1);
+            return;
+        }
+
+        DrawLine(start + normal * 3f, end + normal * 3f, new XnaColor(baseColor.R, baseColor.G, baseColor.B, (byte)120), Math.Max(1, thickness - 1));
+        DrawLine(start - normal * 3f, end - normal * 3f, new XnaColor(baseColor.R, baseColor.G, baseColor.B, (byte)120), Math.Max(1, thickness - 1));
+        DrawLine(start, end, new XnaColor(SignalCoreColor.R, SignalCoreColor.G, SignalCoreColor.B, (byte)86), 1);
+
+        var packetCount = startNode.Type == NodeType.Relay || endNode.Type == NodeType.Relay ? 2 : 1;
         for (var i = 0; i < packetCount; i++)
         {
-            var t = (float)((_totalSeconds * 0.42d + i * (1d / packetCount) + connection.First.X * 0.03d) % 1d);
+            var t = (float)((_totalSeconds * 0.5d + i * (1d / packetCount) + connection.First.X * 0.03d) % 1d);
             var lane = i % 2 == 0 ? -1f : 1f;
-            var position = start + direction * (length * t) + normal * lane * 4f;
-            DrawCircle(position, 4f + 2f * GetPulse(8.1f, i), new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)188));
-            DrawLine(position - direction * 13f, position + direction * 7f, new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)122), 3);
+            var position = start + direction * (length * t) + normal * lane * 3f;
+            DrawDiamond(position, 3f + GetPulse(8.1f, i), new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)92), new XnaColor(SignalCoreColor.R, SignalCoreColor.G, SignalCoreColor.B, (byte)108));
+            DrawLine(position - direction * 10f, position + direction * 5f, new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)72), 1);
         }
 
         if (startNode.Type == NodeType.Relay || endNode.Type == NodeType.Relay)
         {
             var t = (float)((_totalSeconds * 0.82d + connection.First.X * 0.07d + connection.Second.Y * 0.11d) % 1d);
             var position = Vector2.Lerp(start, end, t);
-            DrawCircle(position, 7f + 5f * GetPulse(7.5f, t), new XnaColor(96, 211, 255, 126));
-            DrawCircleOutline(position, 15f, new XnaColor(96, 211, 255, 102), 2);
+            DrawHexagon(position, 5f + 2f * GetPulse(7.5f, t), new XnaColor(105, 219, 198, 48), new XnaColor(105, 219, 198, 80));
         }
     }
 
     private void DrawNode(NodeState node)
     {
         var center = WorldToScreen(GetNodeWorldPosition(node.Id));
-        var radius = MathHelper.Clamp(NodeWorldRadius * _zoom, 30f, 54f);
+        var radius = MathHelper.Clamp(NodeWorldRadius * _zoom, 20f, 34f);
         var isHovered = _hoveredNode?.Id == node.Id;
         var isSelected = _selectedNodeId == node.Id;
         var isObjective = _game.ObjectiveNode == node.Id;
@@ -381,34 +387,34 @@ public class Game1 : Game
         var pulse = GetPulse(3.1f, node.Id.X * 0.21f + node.Id.Y * 0.13f);
         var visual = GetNodeVisual(node.Id);
         ownerColor = Blend(GetOwnerColor(visual.PreviousOwner), ownerColor, EaseOut(visual.OwnerTransition));
-        radius += visual.HoverAmount * 5f + visual.SelectAmount * 4f + visual.SelectFlash * 6f + visual.ImpactFlash * 8f;
+        radius += visual.HoverAmount * 3f + visual.SelectAmount * 3f + visual.SelectFlash * 3f + visual.ImpactFlash * 4f;
         center += GetShakeOffset(visual.Shake, node.Id);
 
         DrawNodeLighting(node, center, radius, ownerColor, typeColor, isObjective, pulse, visual);
-        DrawCircleOutline(center, radius + 15f + pulse * 5f, new XnaColor(typeColor.R, typeColor.G, typeColor.B, node.Owner == NodeOwner.Neutral ? (byte)42 : (byte)95), 2);
-        DrawCircleOutline(center, radius + 8f, new XnaColor(ownerColor.R, ownerColor.G, ownerColor.B, (byte)105), 3);
+        DrawCircleOutline(center, radius + 6f + pulse * 2f, new XnaColor(typeColor.R, typeColor.G, typeColor.B, node.Owner == NodeOwner.Neutral ? (byte)20 : (byte)46), 1);
+        DrawCircleOutline(center, radius + 3f, new XnaColor(ownerColor.R, ownerColor.G, ownerColor.B, (byte)60), 1);
 
         if (preview.IsValid)
         {
-            DrawCircleOutline(center, radius + 20f + pulse * 3f, ValidMoveColor, 3);
+            DrawDiamond(center, radius + 12f + pulse * 2f, new XnaColor(ValidMoveColor.R, ValidMoveColor.G, ValidMoveColor.B, (byte)10), new XnaColor(ValidMoveColor.R, ValidMoveColor.G, ValidMoveColor.B, (byte)150));
         }
         else if (canActOnAnyNode)
         {
-            DrawCircle(center, radius + 4f, DisabledOverlayColor);
+            DrawCircle(center, radius + 3f, DisabledOverlayColor);
         }
 
         if (isObjective)
         {
-            DrawCircleOutline(center, radius + 26f + pulse * 8f, ObjectiveColor, 4);
+            DrawHexagon(center, radius + 16f + pulse * 4f, new XnaColor(ObjectiveColor.R, ObjectiveColor.G, ObjectiveColor.B, (byte)8), new XnaColor(ObjectiveColor.R, ObjectiveColor.G, ObjectiveColor.B, (byte)170));
         }
         else if (IsEnemyIntentTarget(node.Id))
         {
             var intentColor = _game.LastActionResult.CorruptionTarget == node.Id ? LossColor : WarningColor;
-            DrawCircleOutline(center, radius + 25f + pulse * 7f, intentColor, 4);
+            DrawCircleOutline(center, radius + 15f + pulse * 4f, intentColor, 2);
         }
         else if (node.IsUnstable)
         {
-            DrawCircleOutline(center, radius + 23f + pulse * 8f, WarningColor, 4);
+            DrawCircleOutline(center, radius + 15f + pulse * 4f, WarningColor, 2);
         }
 
         DrawNodeSilhouette(node, center, radius, ownerColor, typeColor, isObjective);
@@ -430,12 +436,12 @@ public class Game1 : Game
 
         if (isSelected)
         {
-            DrawCircleOutline(center, radius + 31f + visual.SelectAmount * 6f, XnaColor.White, 3);
+            DrawOctagon(center, radius + 18f + visual.SelectAmount * 3f, new XnaColor(255, 255, 255, 6), new XnaColor(255, 255, 255, 190), 2);
         }
 
         if (isHovered)
         {
-            DrawCircleOutline(center, radius + 37f + visual.HoverFlash * 7f, AccentColor, 3);
+            DrawOctagon(center, radius + 21f + visual.HoverFlash * 3f, new XnaColor(AccentColor.R, AccentColor.G, AccentColor.B, (byte)6), new XnaColor(AccentColor.R, AccentColor.G, AccentColor.B, (byte)170), 2);
         }
     }
 
@@ -453,33 +459,35 @@ public class Game1 : Game
         var color = result.CorruptionTarget.HasValue ? new XnaColor(255, 105, 124, 210) : new XnaColor(255, 174, 88, 190);
         var pulse = GetPulse(4.8f, target.Value.X * 0.17f + target.Value.Y * 0.23f);
 
-        DrawLine(start, end, new XnaColor(7, 10, 15, 220), Math.Max(7, (int)(11 * _zoom)));
-        DrawLine(start, end, color, Math.Max(3, (int)(5 * _zoom)));
-        DrawCircleOutline(end, (54f + pulse * 12f) * _zoom, color, 3);
+        DrawLine(start, end, new XnaColor(7, 10, 15, 210), Math.Max(4, (int)(7 * _zoom)));
+        DrawLine(start, end, color, Math.Max(2, (int)(3 * _zoom)));
+        DrawCircleOutline(end, (38f + pulse * 8f) * _zoom, color, 2);
     }
 
     private void DrawNodeSilhouette(NodeState node, Vector2 center, float radius, XnaColor ownerColor, XnaColor typeColor, bool isObjective)
     {
-        var fill = Blend(ownerColor, typeColor, node.Type == NodeType.Standard && !isObjective ? 0.14f : 0.32f);
+        var fill = Blend(ownerColor, typeColor, node.Type == NodeType.Standard && !isObjective ? 0.1f : 0.28f);
         var outline = node.Owner == NodeOwner.Enemy ? LossColor : typeColor;
-        var iconColor = node.Owner == NodeOwner.Enemy ? new XnaColor(255, 189, 191) : TextColor;
+        var iconColor = node.Owner == NodeOwner.Enemy ? new XnaColor(246, 139, 150, 210) : new XnaColor(218, 232, 223, 190);
 
         if (node.Id == _game.PlayerCore)
         {
-            DrawCircle(center, radius, fill);
-            DrawCircleOutline(center, radius, AccentColor, 4);
-            DrawCircleOutline(center, radius * 0.62f, TextColor, 3);
-            DrawLine(center + new Vector2(-radius * 0.36f, 0), center + new Vector2(radius * 0.36f, 0), iconColor, 4);
-            DrawLine(center + new Vector2(0, -radius * 0.36f), center + new Vector2(0, radius * 0.36f), iconColor, 4);
+            DrawOctagon(center, radius, fill, AccentColor, 2);
+            DrawCircleOutline(center, radius * 0.62f, new XnaColor(SignalCoreColor.R, SignalCoreColor.G, SignalCoreColor.B, (byte)170), 2);
+            DrawCircle(center, radius * 0.2f, iconColor);
+            DrawLine(center + new Vector2(-radius * 0.52f, 0), center + new Vector2(-radius * 0.18f, 0), iconColor, 2);
+            DrawLine(center + new Vector2(radius * 0.18f, 0), center + new Vector2(radius * 0.52f, 0), iconColor, 2);
+            DrawLine(center + new Vector2(0, -radius * 0.52f), center + new Vector2(0, -radius * 0.18f), iconColor, 2);
+            DrawLine(center + new Vector2(0, radius * 0.18f), center + new Vector2(0, radius * 0.52f), iconColor, 2);
             return;
         }
 
         if (isObjective)
         {
-            DrawShield(center, radius, fill, ObjectiveColor);
-            DrawCircleOutline(center, radius * 0.48f, ObjectiveColor, 3);
-            DrawLine(center + new Vector2(-radius * 0.35f, 0), center + new Vector2(radius * 0.35f, 0), ObjectiveColor, 3);
-            DrawLine(center + new Vector2(0, -radius * 0.35f), center + new Vector2(0, radius * 0.35f), ObjectiveColor, 3);
+            DrawHexagon(center, radius, fill, ObjectiveColor);
+            DrawShield(center, radius * 0.58f, new XnaColor(ObjectiveColor.R, ObjectiveColor.G, ObjectiveColor.B, (byte)32), ObjectiveColor);
+            DrawLine(center + new Vector2(-radius * 0.42f, 0), center + new Vector2(radius * 0.42f, 0), ObjectiveColor, 2);
+            DrawLine(center + new Vector2(0, -radius * 0.42f), center + new Vector2(0, radius * 0.42f), ObjectiveColor, 2);
             return;
         }
 
@@ -487,87 +495,87 @@ public class Game1 : Game
         {
             case NodeType.Resource:
                 DrawDiamond(center, radius, fill, outline);
-                DrawLine(center + new Vector2(-radius * 0.34f, radius * 0.08f), center + new Vector2(radius * 0.34f, radius * 0.08f), iconColor, 4);
-                DrawLine(center + new Vector2(-radius * 0.2f, -radius * 0.12f), center + new Vector2(radius * 0.2f, -radius * 0.12f), iconColor, 4);
+                DrawLine(center + new Vector2(-radius * 0.34f, radius * 0.08f), center + new Vector2(radius * 0.34f, radius * 0.08f), iconColor, 2);
+                DrawLine(center + new Vector2(-radius * 0.2f, -radius * 0.12f), center + new Vector2(radius * 0.2f, -radius * 0.12f), iconColor, 2);
                 break;
             case NodeType.Relay:
-                DrawHexagon(center, radius, fill, outline);
+                DrawTriangle(center, radius * 1.08f, fill, outline);
                 DrawCircle(center, radius * 0.12f, iconColor);
-                DrawLine(center, center + new Vector2(0, -radius * 0.45f), iconColor, 4);
-                DrawLine(center, center + new Vector2(-radius * 0.42f, radius * 0.25f), iconColor, 4);
-                DrawLine(center, center + new Vector2(radius * 0.42f, radius * 0.25f), iconColor, 4);
+                DrawLine(center, center + new Vector2(0, -radius * 0.56f), iconColor, 2);
+                DrawLine(center, center + new Vector2(-radius * 0.5f, radius * 0.3f), iconColor, 2);
+                DrawLine(center, center + new Vector2(radius * 0.5f, radius * 0.3f), iconColor, 2);
                 break;
             case NodeType.Firewall:
                 DrawShield(center, radius, fill, outline);
-                DrawLine(center + new Vector2(-radius * 0.34f, -radius * 0.16f), center + new Vector2(radius * 0.34f, -radius * 0.16f), iconColor, 4);
-                DrawLine(center + new Vector2(-radius * 0.42f, radius * 0.05f), center + new Vector2(radius * 0.42f, radius * 0.05f), iconColor, 4);
-                DrawLine(center + new Vector2(-radius * 0.22f, radius * 0.26f), center + new Vector2(radius * 0.22f, radius * 0.26f), iconColor, 4);
+                DrawLine(center + new Vector2(-radius * 0.34f, -radius * 0.16f), center + new Vector2(radius * 0.34f, -radius * 0.16f), iconColor, 2);
+                DrawLine(center + new Vector2(-radius * 0.42f, radius * 0.05f), center + new Vector2(radius * 0.42f, radius * 0.05f), iconColor, 2);
+                DrawLine(center + new Vector2(-radius * 0.22f, radius * 0.26f), center + new Vector2(radius * 0.22f, radius * 0.26f), iconColor, 2);
                 break;
             default:
-                DrawCircle(center, radius, fill);
-                DrawCircleOutline(center, radius, outline, 3);
-                DrawCircleOutline(center, radius * 0.42f, iconColor, 3);
+                DrawHexagon(center, radius, fill, outline);
+                DrawCircleOutline(center, radius * 0.38f, iconColor, 2);
                 break;
         }
     }
 
     private void DrawIntegrityBar(NodeState node, Vector2 center, float radius)
     {
-        var width = (int)(radius * 1.42f);
+        var width = (int)(radius * 1.28f);
         var x = (int)(center.X - width / 2f);
         var y = (int)(center.Y + radius * 0.66f);
         var integrityRatio = Math.Clamp(node.Integrity / 12f, 0f, 1f);
         var threatRatio = Math.Clamp(node.Threat / 12f, 0f, 1f);
 
-        Fill(new XnaRectangle(x, y, width, 5), new XnaColor(22, 30, 39, 220));
-        Fill(new XnaRectangle(x, y, (int)(width * integrityRatio), 5), ValidMoveColor);
-        Fill(new XnaRectangle(x, y + 7, width, 4), new XnaColor(22, 30, 39, 220));
-        Fill(new XnaRectangle(x, y + 7, (int)(width * threatRatio), 4), WarningColor);
+        Fill(new XnaRectangle(x, y, width, 4), new XnaColor(22, 30, 39, 190));
+        Fill(new XnaRectangle(x, y, (int)(width * integrityRatio), 4), new XnaColor(ValidMoveColor.R, ValidMoveColor.G, ValidMoveColor.B, (byte)190));
+        Fill(new XnaRectangle(x, y + 6, width, 3), new XnaColor(22, 30, 39, 190));
+        Fill(new XnaRectangle(x, y + 6, (int)(width * threatRatio), 3), new XnaColor(WarningColor.R, WarningColor.G, WarningColor.B, (byte)190));
     }
 
     private void DrawNodeLighting(NodeState node, Vector2 center, float radius, XnaColor ownerColor, XnaColor typeColor, bool isObjective, float pulse, NodeVisualState visual)
     {
-        var ownershipAlpha = node.Owner == NodeOwner.Neutral ? 28 : 62;
-        DrawCircle(center, radius + 38f + pulse * 8f + visual.ImpactFlash * 16f, new XnaColor(ownerColor.R, ownerColor.G, ownerColor.B, (byte)ownershipAlpha));
-        DrawCircle(center, radius + 22f + visual.HoverAmount * 8f, new XnaColor(typeColor.R, typeColor.G, typeColor.B, (byte)(node.Owner == NodeOwner.Neutral ? 22 : 46)));
+        var ownershipAlpha = node.Owner == NodeOwner.Neutral ? 10 : 24;
+        DrawOctagon(center, radius + 20f + pulse * 4f + visual.ImpactFlash * 8f, new XnaColor(ownerColor.R, ownerColor.G, ownerColor.B, (byte)ownershipAlpha), new XnaColor(ownerColor.R, ownerColor.G, ownerColor.B, (byte)10), 1);
+        DrawCircle(center, radius + 11f + visual.HoverAmount * 4f, new XnaColor(typeColor.R, typeColor.G, typeColor.B, (byte)(node.Owner == NodeOwner.Neutral ? 8 : 18)));
 
         if (isObjective)
         {
-            DrawCircle(center, radius + 56f + pulse * 18f, new XnaColor(ObjectiveColor.R, ObjectiveColor.G, ObjectiveColor.B, (byte)38));
-            DrawCircleOutline(center, radius + 43f + pulse * 14f, new XnaColor(ObjectiveColor.R, ObjectiveColor.G, ObjectiveColor.B, (byte)118), 2);
+            DrawCircle(center, radius + 30f + pulse * 8f, new XnaColor(ObjectiveColor.R, ObjectiveColor.G, ObjectiveColor.B, (byte)16));
+            DrawCircleOutline(center, radius + 24f + pulse * 6f, new XnaColor(ObjectiveColor.R, ObjectiveColor.G, ObjectiveColor.B, (byte)80), 1);
         }
 
         if (node.IsUnstable)
         {
-            DrawCircle(center, radius + 45f + pulse * 12f, new XnaColor(WarningColor.R, WarningColor.G, WarningColor.B, (byte)32));
+            DrawCircle(center, radius + 24f + pulse * 6f, new XnaColor(WarningColor.R, WarningColor.G, WarningColor.B, (byte)14));
         }
     }
 
     private void DrawCorruptionOverlay(Vector2 center, float radius, float pulse)
     {
-        var color = new XnaColor((byte)255, (byte)116, (byte)128, (byte)(170 + pulse * 55));
-        DrawLine(center + new Vector2(-radius * 0.42f, -radius * 0.42f), center + new Vector2(radius * 0.42f, radius * 0.42f), color, 5);
-        DrawLine(center + new Vector2(radius * 0.42f, -radius * 0.42f), center + new Vector2(-radius * 0.42f, radius * 0.42f), color, 5);
-        DrawCircleOutline(center, radius + 10f + pulse * 12f, new XnaColor(255, 82, 104, 94), 2);
+        var color = new XnaColor((byte)255, (byte)100, (byte)113, (byte)(130 + pulse * 45));
+        DrawLine(center + new Vector2(-radius * 0.52f, -radius * 0.3f), center + new Vector2(-radius * 0.12f, radius * 0.44f), color, 3);
+        DrawLine(center + new Vector2(radius * 0.46f, -radius * 0.42f), center + new Vector2(radius * 0.08f, radius * 0.5f), color, 3);
+        DrawLine(center + new Vector2(-radius * 0.12f, -radius * 0.52f), center + new Vector2(radius * 0.5f, radius * 0.18f), color, 2);
+        DrawCircleOutline(center, radius + 6f + pulse * 6f, new XnaColor(255, 82, 104, 56), 1);
 
         for (var i = 0; i < 5; i++)
         {
             var angle = (float)_totalSeconds * (1.2f + i * 0.13f) + i * 1.21f;
             var start = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (radius * 0.34f);
             var end = center + new Vector2(MathF.Cos(angle + 0.72f), MathF.Sin(angle + 0.72f)) * (radius * 0.78f);
-            DrawLine(start, end, new XnaColor(255, 80, 105, 94), 2);
+            DrawLine(start, end, new XnaColor(255, 80, 105, 62), 1);
         }
     }
 
     private void DrawRelayAmplifier(Vector2 center, float radius, float pulse)
     {
-        var relayColor = new XnaColor(96, 211, 255, 116);
-        DrawCircleOutline(center, radius + 17f + pulse * 9f, relayColor, 2);
+        var relayColor = new XnaColor(105, 219, 198, 84);
+        DrawTriangle(center, radius + 10f + pulse * 4f, new XnaColor(relayColor.R, relayColor.G, relayColor.B, (byte)4), relayColor);
         for (var i = 0; i < 3; i++)
         {
             var angle = (float)_totalSeconds * 1.9f + MathHelper.TwoPi * i / 3f;
             var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-            DrawLine(center + direction * (radius * 0.72f), center + direction * (radius + 22f), relayColor, 2);
+            DrawLine(center + direction * (radius * 0.72f), center + direction * (radius + 12f), relayColor, 1);
         }
     }
 
@@ -600,13 +608,14 @@ public class Game1 : Game
     {
         var hud = GetHudBounds();
         Fill(hud, PanelColor);
-        Fill(new XnaRectangle(hud.X, hud.Y, 4, hud.Height), new XnaColor(AccentColor.R, AccentColor.G, AccentColor.B, (byte)160));
-        Fill(new XnaRectangle(hud.X + 4, hud.Y, hud.Width - 4, 64), new XnaColor(19, 35, 48, 134));
-        DrawRectangle(hud, PanelBorderColor, 2);
+        Fill(new XnaRectangle(hud.X, hud.Y, 3, hud.Height), new XnaColor(AccentColor.R, AccentColor.G, AccentColor.B, (byte)152));
+        Fill(new XnaRectangle(hud.X + 3, hud.Y, hud.Width - 3, 64), new XnaColor(18, 29, 27, 128));
+        DrawLine(new Vector2(hud.X + 3, hud.Y + 64), new Vector2(hud.Right, hud.Y + 64), new XnaColor(AccentColor.R, AccentColor.G, AccentColor.B, (byte)86), 2);
+        DrawRectangle(hud, PanelBorderColor, 1);
 
         var x = hud.X + TextPadding;
         var y = hud.Y + TextPadding;
-        DrawText("TRACE", x, y, 22, TextColor);
+        DrawText("LATTICE", x, y, 22, TextColor);
         DrawText($"Turn {_game.TurnNumber}", hud.Right - 84, y + 4, 15, MutedTextColor);
         y += 36;
 
@@ -615,7 +624,7 @@ public class Game1 : Game
 
         DrawResourceStrip(x, y, hud.Width - TextPadding * 2);
         y += 54;
-        Fill(new XnaRectangle(x - 4, y - 5, hud.Width - TextPadding * 2 + 8, 44), new XnaColor(40, 24, 34, 106));
+        Fill(new XnaRectangle(x - 4, y - 5, hud.Width - TextPadding * 2 + 8, 44), new XnaColor(42, 24, 28, 104));
         DrawText($"{_game.Configuration.EnemyPersonality} AI", x, y, 14, WarningColor);
         DrawText(_game.Configuration.EnemyDifficulty.ToString(), x + 150, y, 13, MutedTextColor);
         y += 24;
@@ -631,7 +640,7 @@ public class Game1 : Game
         y = DrawCommandButton(x, y + 7, "N", "New Seed", ButtonAction.NewMission);
         y += 18;
 
-        DrawText("Signal", x, y, 16, AccentColor);
+        DrawText("Signal Trace", x, y, 16, AccentColor);
         y += 24;
         Fill(new XnaRectangle(x - 4, y - 5, hud.Width - TextPadding * 2 + 8, Math.Min(98, EstimateWrappedHeight(_status, hud.Width - TextPadding * 2, 13) + 14)), new XnaColor(10, 17, 25, 126));
         DrawText(_status, x, y, 13, TextColor, hud.Width - TextPadding * 2);
@@ -701,15 +710,13 @@ public class Game1 : Game
             return;
         }
 
-        var mouse = Mouse.GetState().Position;
-        var width = 300;
         var node = _hoveredNode;
         var preview = GetActionPreview(node);
-        var height = node.IsUnstable || !string.IsNullOrWhiteSpace(node.DangerReason) ? 188 : 166;
-        var x = Math.Min(mouse.X + 18, WindowWidth - HudWidth - width - 42);
-        var y = Math.Min(mouse.Y + 18, WindowHeight - height - 18);
-        var bounds = new XnaRectangle(Math.Max(18, x), Math.Max(18, y), width, height);
-        Fill(bounds, new XnaColor(16, 22, 31, 242));
+        var hud = GetHudBounds();
+        var width = hud.Width - TextPadding * 2;
+        var height = node.IsUnstable || !string.IsNullOrWhiteSpace(node.DangerReason) ? 174 : 150;
+        var bounds = new XnaRectangle(hud.X + TextPadding, hud.Bottom - height - TextPadding, width, height);
+        Fill(bounds, new XnaColor(10, 15, 20, 244));
         DrawRectangle(bounds, preview.IsValid ? ValidMoveColor : AccentColor, 2);
 
         DrawText($"{GetOwnerLabel(node.Owner)} {GetTypeLabel(node)} {node.Id}", bounds.X + 12, bounds.Y + 10, 16, TextColor);
@@ -1216,7 +1223,7 @@ public class Game1 : Game
         var fitZoom = Math.Min(viewport.Width / (networkWidth + CameraMargin * 2f), viewport.Height / (networkHeight + CameraMargin * 2f));
 
         _targetCameraCenter = new Vector2((minX + maxX) / 2f, (minY + maxY) / 2f);
-        _targetZoom = MathHelper.Clamp(fitZoom, 0.65f, 1.28f);
+        _targetZoom = MathHelper.Clamp(fitZoom, 0.5f, 1.05f);
 
         if (immediate)
         {
@@ -1294,8 +1301,8 @@ public class Game1 : Game
     {
         return owner switch
         {
-            NodeOwner.Player => new XnaColor(35, 145, 101),
-            NodeOwner.Enemy => new XnaColor(153, 38, 55),
+            NodeOwner.Player => new XnaColor(39, 151, 116),
+            NodeOwner.Enemy => new XnaColor(164, 34, 55),
             _ => NeutralColor
         };
     }
@@ -1314,10 +1321,10 @@ public class Game1 : Game
 
         return node.Type switch
         {
-            NodeType.Resource => new XnaColor(232, 190, 66),
-            NodeType.Relay => new XnaColor(66, 170, 230),
-            NodeType.Firewall => new XnaColor(186, 117, 230),
-            _ => new XnaColor(150, 165, 184)
+            NodeType.Resource => new XnaColor(224, 181, 68),
+            NodeType.Relay => new XnaColor(102, 215, 195),
+            NodeType.Firewall => new XnaColor(166, 132, 213),
+            _ => new XnaColor(143, 158, 157)
         };
     }
 
@@ -1325,37 +1332,37 @@ public class Game1 : Game
     {
         if (!active)
         {
-            return new XnaColor(47, 55, 66, 130);
+            return new XnaColor(45, 56, 57, 130);
         }
 
         if (start.Owner == NodeOwner.Enemy || end.Owner == NodeOwner.Enemy)
         {
             return start.Owner == NodeOwner.Enemy && end.Owner == NodeOwner.Enemy
-                ? new XnaColor(143, 41, 59, 210)
-                : new XnaColor(204, 100, 71, 220);
+                ? new XnaColor(148, 34, 54, 210)
+                : new XnaColor(199, 91, 67, 220);
         }
 
         if (start.Owner == NodeOwner.Player && end.Owner == NodeOwner.Player)
         {
-            return new XnaColor(62, 188, 139, 230);
+            return new XnaColor(74, 196, 151, 230);
         }
 
-        return new XnaColor(70, 116, 143, 190);
+        return new XnaColor(75, 133, 130, 190);
     }
 
     private static XnaColor GetFlowColor(NodeState start, NodeState end)
     {
         if (start.Owner == NodeOwner.Enemy || end.Owner == NodeOwner.Enemy)
         {
-            return new XnaColor(255, 110, 126);
+            return new XnaColor(248, 99, 116);
         }
 
         if (start.Owner == NodeOwner.Player || end.Owner == NodeOwner.Player)
         {
-            return new XnaColor(104, 229, 184);
+            return new XnaColor(122, 231, 184);
         }
 
-        return new XnaColor(108, 196, 238);
+        return new XnaColor(128, 207, 193);
     }
 
     private void DrawObjectiveProgress(int x, int y, int width)
@@ -1601,6 +1608,28 @@ public class Game1 : Game
         Fill(new XnaRectangle(rectangle.Right - thickness, rectangle.Y, thickness, rectangle.Height), color);
     }
 
+    private Texture2D CreateSoftCircleTexture(int size)
+    {
+        var texture = new Texture2D(GraphicsDevice, size, size);
+        var data = new XnaColor[size * size];
+        var center = (size - 1) / 2f;
+        var radius = size * 0.47f;
+        var feather = size * 0.035f;
+
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var distance = Vector2.Distance(new Vector2(x, y), new Vector2(center, center));
+                var alpha = Math.Clamp((radius - distance) / feather, 0f, 1f);
+                data[y * size + x] = new XnaColor((byte)255, (byte)255, (byte)255, (byte)(alpha * 255f));
+            }
+        }
+
+        texture.SetData(data);
+        return texture;
+    }
+
     private void DrawLine(Vector2 start, Vector2 end, XnaColor color, int thickness)
     {
         var edge = end - start;
@@ -1610,14 +1639,8 @@ public class Game1 : Game
 
     private void DrawCircle(Vector2 center, float radius, XnaColor color)
     {
-        var top = (int)MathF.Floor(center.Y - radius);
-        var bottom = (int)MathF.Ceiling(center.Y + radius);
-        for (var y = top; y <= bottom; y += 2)
-        {
-            var dy = y - center.Y;
-            var halfWidth = MathF.Sqrt(MathF.Max(0f, radius * radius - dy * dy));
-            Fill(new XnaRectangle((int)(center.X - halfWidth), y, (int)(halfWidth * 2f), 2), color);
-        }
+        var diameter = Math.Max(1, (int)MathF.Ceiling(radius * 2f));
+        _spriteBatch.Draw(_softCircle, new XnaRectangle((int)(center.X - radius), (int)(center.Y - radius), diameter, diameter), color);
     }
 
     private void DrawCircleOutline(Vector2 center, float radius, XnaColor color, int thickness)
@@ -1642,7 +1665,7 @@ public class Game1 : Game
             center + new Vector2(-radius, 0)
         };
         FillPolygonApprox(points, fill);
-        DrawPolygonOutline(points, outline, 4);
+        DrawPolygonOutline(points, outline, 2);
     }
 
     private void DrawHexagon(Vector2 center, float radius, XnaColor fill, XnaColor outline)
@@ -1655,7 +1678,33 @@ public class Game1 : Game
             })
             .ToArray();
         FillPolygonApprox(points, fill);
-        DrawPolygonOutline(points, outline, 4);
+        DrawPolygonOutline(points, outline, 2);
+    }
+
+    private void DrawOctagon(Vector2 center, float radius, XnaColor fill, XnaColor outline, int thickness)
+    {
+        var points = Enumerable.Range(0, 8)
+            .Select(i =>
+            {
+                var angle = MathHelper.TwoPi * i / 8f + MathHelper.PiOver4 / 2f;
+                return center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+            })
+            .ToArray();
+        FillPolygonApprox(points, fill);
+        DrawPolygonOutline(points, outline, thickness);
+    }
+
+    private void DrawTriangle(Vector2 center, float radius, XnaColor fill, XnaColor outline)
+    {
+        var points = Enumerable.Range(0, 3)
+            .Select(i =>
+            {
+                var angle = MathHelper.TwoPi * i / 3f - MathHelper.PiOver2;
+                return center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+            })
+            .ToArray();
+        FillPolygonApprox(points, fill);
+        DrawPolygonOutline(points, outline, 2);
     }
 
     private void DrawShield(Vector2 center, float radius, XnaColor fill, XnaColor outline)
@@ -1669,14 +1718,39 @@ public class Game1 : Game
             center + new Vector2(-radius * 0.62f, radius * 0.18f)
         };
         FillPolygonApprox(points, fill);
-        DrawPolygonOutline(points, outline, 4);
+        DrawPolygonOutline(points, outline, 2);
     }
 
     private void FillPolygonApprox(IReadOnlyList<Vector2> points, XnaColor color)
     {
-        var center = points.Aggregate(Vector2.Zero, (sum, point) => sum + point) / points.Count;
-        var maxRadius = points.Max(point => Vector2.Distance(point, center));
-        DrawCircle(center, maxRadius * 0.82f, color);
+        var minY = (int)MathF.Floor(points.Min(point => point.Y));
+        var maxY = (int)MathF.Ceiling(points.Max(point => point.Y));
+
+        for (var y = minY; y <= maxY; y++)
+        {
+            var intersections = new List<float>();
+            for (var i = 0; i < points.Count; i++)
+            {
+                var first = points[i];
+                var second = points[(i + 1) % points.Count];
+                if ((first.Y <= y && second.Y > y) || (second.Y <= y && first.Y > y))
+                {
+                    var t = (y - first.Y) / (second.Y - first.Y);
+                    intersections.Add(first.X + t * (second.X - first.X));
+                }
+            }
+
+            intersections.Sort();
+            for (var i = 0; i + 1 < intersections.Count; i += 2)
+            {
+                var startX = (int)MathF.Ceiling(intersections[i]);
+                var endX = (int)MathF.Floor(intersections[i + 1]);
+                if (endX >= startX)
+                {
+                    Fill(new XnaRectangle(startX, y, endX - startX + 1, 1), color);
+                }
+            }
+        }
     }
 
     private void DrawPolygonOutline(IReadOnlyList<Vector2> points, XnaColor color, int thickness)
