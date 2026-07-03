@@ -21,7 +21,7 @@ public class Game1 : Game
     private const int HudWidth = 300;
     private const int ButtonHeight = 38;
     private const int TextPadding = 12;
-    private const int MaxLogEntries = 3;
+    private const int MaxLogEntries = 2;
     private const float NodeWorldRadius = 28f;
     private const float CameraMargin = 260f;
     private const float CameraFollow = 0.16f;
@@ -640,7 +640,10 @@ public class Game1 : Game
         y = DrawCommandButton(x, y + 12, "Space", "End", ButtonAction.EndTurn);
         y = DrawCommandButton(x, y + 7, "R", "Replay", ButtonAction.Restart);
         y = DrawCommandButton(x, y + 7, "N", "New Seed", ButtonAction.NewMission);
-        y += 18;
+        y += 14;
+
+        y = DrawTacticalGuide(x, y, hud.Width - TextPadding * 2);
+        y += 14;
 
         DrawText("Signal Trace", x, y, 16, AccentColor);
         y += 24;
@@ -720,6 +723,32 @@ public class Game1 : Game
         DrawText(label, bounds.X + 82, bounds.Y + 8, 16, TextColor);
         _buttons.Add(new ButtonDefinition(bounds, action, null));
         return y + ButtonHeight;
+    }
+
+    private int DrawTacticalGuide(int x, int y, int width)
+    {
+        var title = _game.Result == GameResult.InProgress ? "Forecast" : "After Action";
+        var rows = BuildTacticalGuideRows();
+        var height = 112;
+        var bounds = new XnaRectangle(x - 4, y - 4, width + 8, height);
+        Fill(bounds, _game.Result == GameResult.InProgress ? new XnaColor(10, 20, 26, 136) : new XnaColor(42, 18, 26, 156));
+        DrawRectangle(bounds, _game.Result == GameResult.InProgress ? PanelBorderColor : LossColor, 1);
+        DrawText(title, x, y, 14, _game.Result == GameResult.InProgress ? AccentColor : WarningColor);
+
+        var lineY = y + 25;
+        foreach (var row in rows.Take(3))
+        {
+            if (lineY > bounds.Bottom - 18)
+            {
+                break;
+            }
+
+            DrawText(row.Label, x, lineY, 10, row.Color);
+            DrawText(row.Text, x + 54, lineY, 10, MutedTextColor, width - 62);
+            lineY += Math.Min(24, EstimateWrappedHeight(row.Text, width - 62, 10) + 4);
+        }
+
+        return y + height;
     }
 
     private void DrawHoverTooltip()
@@ -1457,6 +1486,142 @@ public class Game1 : Game
         DrawText($"{_game.ObjectiveHoldTurns}/{_game.RequiredObjectiveHoldTurns}", x + width - 42, y - 2, 16, TextColor);
     }
 
+    private IReadOnlyList<GuideRow> BuildTacticalGuideRows()
+    {
+        return _game.Result == GameResult.InProgress
+            ? BuildForecastGuideRows()
+            : BuildAfterActionGuideRows();
+    }
+
+    private IReadOnlyList<GuideRow> BuildForecastGuideRows()
+    {
+        var rows = new List<GuideRow>();
+        var forecastPressure = _game.CorruptionPressure + _game.Configuration.CorruptionPressureGrowthPerTurn;
+        var decision = TacticalEnemyPlanner.SelectDecision(_game.Board, _game.Configuration, _game.PlayerCore, _game.ObjectiveNode, forecastPressure, _game.TurnNumber);
+        if (decision.Target.HasValue)
+        {
+            var verb = decision.ActionType == TacticalEnemyActionType.CorruptNode ? "Capture" : "Pressure";
+            rows.Add(new GuideRow("Threat", $"{verb} {decision.Target.Value} next: {ShortenFactor(decision.PrimaryFactor)}.", WarningColor));
+        }
+        else
+        {
+            rows.Add(new GuideRow("Threat", "No reachable pressure target.", WarningColor));
+        }
+
+        var unstable = GetMostUrgentUnstableNode();
+        if (unstable is not null)
+        {
+            rows.Add(new GuideRow("Risk", $"{unstable.Id} unstable {unstable.UnstableTurns}/{_game.Configuration.InstabilityTurnsBeforeCollapse}; reinforce or weaken.", LossColor));
+        }
+        else
+        {
+            rows.Add(new GuideRow("Risk", "No collapse timer. Plan two moves ahead.", AccentColor));
+        }
+
+        rows.Add(new GuideRow("Roles", BuildRoleGuideLine(), MutedTextColor));
+        return rows;
+    }
+
+    private IReadOnlyList<GuideRow> BuildAfterActionGuideRows()
+    {
+        var rows = new List<GuideRow>();
+        if (_game.Result == GameResult.PlayerWin)
+        {
+            rows.Add(new GuideRow("Cause", "Objective survived the hold.", WinColor));
+            rows.Add(new GuideRow("Replay", "Compare route speed and anchor timing.", AccentColor));
+            rows.Add(new GuideRow("Roles", BuildRoleGuideLine(), MutedTextColor));
+            return rows;
+        }
+
+        rows.Add(new GuideRow("Cause", BuildLossCauseLine(), LossColor));
+        var result = _game.LastActionResult;
+        if (result.CollapsedNodes is { Count: > 0 })
+        {
+            rows.Add(new GuideRow("Event", $"Collapsed: {string.Join(", ", result.CollapsedNodes)}.", WarningColor));
+        }
+        else if (result.CorruptionTarget.HasValue)
+        {
+            rows.Add(new GuideRow("Event", $"Captured {result.CorruptionTarget.Value}: {ShortenFactor(result.EnemyPrimaryFactor)}.", WarningColor));
+        }
+        else if (result.CorruptionFocusTarget.HasValue)
+        {
+            rows.Add(new GuideRow("Event", $"Pressed {result.CorruptionFocusTarget.Value}; node held.", WarningColor));
+        }
+
+        rows.Add(new GuideRow("Replay", BuildReplayAdviceLine(), AccentColor));
+        return rows;
+    }
+
+    private NodeState GetMostUrgentUnstableNode()
+    {
+        return _game.Board.Nodes
+            .Where(node => node.Owner == NodeOwner.Player && node.IsUnstable)
+            .OrderByDescending(node => node.UnstableTurns)
+            .ThenByDescending(node => node.Threat - node.Integrity)
+            .ThenBy(node => node.Id)
+            .FirstOrDefault();
+    }
+
+    private string BuildLossCauseLine()
+    {
+        var core = _game.Board.GetNode(_game.PlayerCore);
+        if (core.Owner != NodeOwner.Player)
+        {
+            return $"Core {_game.PlayerCore} fell.";
+        }
+
+        if (_game.ObjectiveNode.HasValue && _game.Board.GetNode(_game.ObjectiveNode.Value).Owner == NodeOwner.Enemy)
+        {
+            return $"Objective {_game.ObjectiveNode.Value} corrupted.";
+        }
+
+        return "Network lost tempo to corruption.";
+    }
+
+    private string BuildReplayAdviceLine()
+    {
+        if (_game.PlayerEnergy >= _game.Configuration.ClaimEnergyCost * 2)
+        {
+            return "Spend banked energy on anchors sooner.";
+        }
+
+        if (!_game.Board.Nodes.Any(node => node.Owner == NodeOwner.Player && node.Type == NodeType.Resource))
+        {
+            return "Claim a Resource before stalling.";
+        }
+
+        if (!_game.Board.Nodes.Any(node => node.Owner == NodeOwner.Player && node.Type == NodeType.Relay))
+        {
+            return "Use a Relay to shorten the route.";
+        }
+
+        return "Reinforce at 1/2 unstable or weaken link.";
+    }
+
+    private string BuildRoleGuideLine()
+    {
+        var resources = _game.Board.Nodes.Count(node => node.Owner == NodeOwner.Player && node.Type == NodeType.Resource);
+        var relays = _game.Board.Nodes.Count(node => node.Owner == NodeOwner.Player && node.Type == NodeType.Relay);
+        var firewalls = _game.Board.Nodes.Count(node => node.Owner == NodeOwner.Player && node.Type == NodeType.Firewall);
+        return $"Resource income {resources}; Relay reach {relays}; Firewall slow {firewalls}.";
+    }
+
+    private static string ShortenFactor(string factor)
+    {
+        return factor switch
+        {
+            "objective proximity" => "objective",
+            "corruption opportunities" => "weakness",
+            "reachable territory" => "territory",
+            "future positioning" => "position",
+            "energy efficiency" => "pressure",
+            "player expansion" => "expansion",
+            "network control" => "control",
+            "defensive value" => "defense",
+            _ => factor
+        };
+    }
+
     private string FormatStatusMessage(GameActionResult result)
     {
         if (!result.Succeeded)
@@ -1851,6 +2016,8 @@ public class Game1 : Game
     }
 
     private readonly record struct TextKey(string Text, int Size, uint PackedColor);
+
+    private readonly record struct GuideRow(string Label, string Text, XnaColor Color);
 
     private readonly record struct ButtonDefinition(XnaRectangle Bounds, ButtonAction Action, PlayerActionMode? PlayerAction);
 
