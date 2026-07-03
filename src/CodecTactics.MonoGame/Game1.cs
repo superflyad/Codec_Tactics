@@ -21,7 +21,7 @@ public class Game1 : Game
     private const int HudWidth = 300;
     private const int ButtonHeight = 38;
     private const int TextPadding = 12;
-    private const int MaxLogEntries = 4;
+    private const int MaxLogEntries = 3;
     private const float NodeWorldRadius = 28f;
     private const float CameraMargin = 260f;
     private const float CameraFollow = 0.16f;
@@ -624,6 +624,8 @@ public class Game1 : Game
 
         DrawResourceStrip(x, y, hud.Width - TextPadding * 2);
         y += 54;
+        DrawTurnGuidance(x, y, hud.Width - TextPadding * 2);
+        y += 62;
         Fill(new XnaRectangle(x - 4, y - 5, hud.Width - TextPadding * 2 + 8, 44), new XnaColor(42, 24, 28, 104));
         DrawText($"{_game.Configuration.EnemyPersonality} AI", x, y, 14, WarningColor);
         DrawText(_game.Configuration.EnemyDifficulty.ToString(), x + 150, y, 13, MutedTextColor);
@@ -672,6 +674,23 @@ public class Game1 : Game
 
         DrawText("Corruption", x + 140, y, 14, MutedTextColor);
         DrawText(_game.CorruptionPressure.ToString(), x + 236, y - 4, 22, WarningColor);
+    }
+
+    private void DrawTurnGuidance(int x, int y, int width)
+    {
+        var resourceCount = _game.Board.Nodes.Count(node => node.Owner == NodeOwner.Player && node.Type == NodeType.Resource);
+        var income = resourceCount * _game.Configuration.ResourceEnergyPerTurn;
+        var energyLine = _game.PlayerEnergy == 0
+            ? income > 0
+                ? $"0 energy: End Turn; Resources restore +{income}."
+                : "0 energy: End Turn resolves pressure."
+            : income > 0
+                ? $"Resources restore +{income} after corruption."
+                : "Claim Resources to restore energy.";
+        var corruptionLine = $"Corruption {_game.CorruptionPressure}: enemy pressure for spread/collapse.";
+        Fill(new XnaRectangle(x - 4, y - 3, width + 8, 51), new XnaColor(10, 17, 25, 106));
+        DrawText(energyLine, x, y, 12, AccentColor, width);
+        DrawText(corruptionLine, x, y + 24, 12, WarningColor, width);
     }
 
     private int DrawActionButton(int x, int y, string shortcut, string label, PlayerActionMode action, XnaColor iconColor)
@@ -863,7 +882,7 @@ public class Game1 : Game
     {
         _selectedAction = action;
         _invalidReason = string.Empty;
-        _status = $"{action}: {CountValidTargetsForSelectedAction()} target(s) available.";
+        _status = FormatActionAvailabilityStatus(action);
         Log(_status);
         _audio.Play(AudioCue.Select, 0.48f);
     }
@@ -1179,6 +1198,66 @@ public class Game1 : Game
     private int CountValidTargetsForSelectedAction()
     {
         return _game.Board.Nodes.Count(node => GetActionPreview(node).IsValid);
+    }
+
+    private string FormatActionAvailabilityStatus(PlayerActionMode action)
+    {
+        var targetCount = CountValidTargetsForSelectedAction();
+        if (targetCount > 0)
+        {
+            return $"{action}: {targetCount} target(s) available.";
+        }
+
+        return action switch
+        {
+            PlayerActionMode.Claim => FormatNoClaimTargetsStatus(),
+            PlayerActionMode.Reinforce => FormatNoReinforceTargetsStatus(),
+            PlayerActionMode.Weaken => FormatNoWeakenTargetsStatus(),
+            _ => $"{action}: 0 target(s) available."
+        };
+    }
+
+    private string FormatNoClaimTargetsStatus()
+    {
+        var cost = _game.Configuration.ClaimEnergyCost;
+        if (_game.PlayerEnergy < cost)
+        {
+            return $"Claim: 0 targets. Need {cost} energy; End Turn can restore energy from owned Resources.";
+        }
+
+        if (!_game.Board.Nodes.Any(node => node.Owner == NodeOwner.Neutral))
+        {
+            return "Claim: 0 targets. No neutral nodes remain.";
+        }
+
+        return "Claim: 0 targets. Neutral nodes must connect to your network or an owned Relay.";
+    }
+
+    private string FormatNoReinforceTargetsStatus()
+    {
+        var cost = _game.Configuration.ReinforceEnergyCost;
+        if (_game.PlayerEnergy < cost)
+        {
+            return $"Reinforce: 0 targets. Need {cost} energy; End Turn can restore energy from owned Resources.";
+        }
+
+        return "Reinforce: 0 targets. Only player-owned nodes can be reinforced.";
+    }
+
+    private string FormatNoWeakenTargetsStatus()
+    {
+        var cost = _game.Configuration.WeakenConnectionEnergyCost;
+        if (_game.PlayerEnergy < cost)
+        {
+            return $"Weaken: 0 targets. Need {cost} energy; End Turn can restore energy from owned Resources.";
+        }
+
+        if (!_game.Board.Nodes.Any(node => node.Owner == NodeOwner.Enemy))
+        {
+            return "Weaken: 0 targets. No corrupted nodes are active.";
+        }
+
+        return "Weaken: 0 targets. Weaken needs corrupted nodes adjacent to your network.";
     }
 
     private NodeState GetNodeAt(XnaPoint mousePosition)
