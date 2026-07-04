@@ -26,6 +26,9 @@ public class Game1 : Game
     private const float CameraMargin = 260f;
     private const float CameraFollow = 0.16f;
     private const float CameraInertia = 0.72f;
+    private const float CameraMapGuard = 140f;
+    private const float MinCameraTilt = 0.34f;
+    private const float MaxCameraTilt = 1.08f;
 
     private static readonly XnaColor BackgroundColor = new(3, 6, 9);
     private static readonly XnaColor NetworkSurfaceColor = new(5, 9, 13);
@@ -100,6 +103,12 @@ public class Game1 : Game
     private float _zoom = 1f;
     private float _targetZoom = 1f;
     private float _zoomVelocity;
+    private float _cameraYaw;
+    private float _targetCameraYaw;
+    private float _cameraYawVelocity;
+    private float _cameraTilt = 0.68f;
+    private float _targetCameraTilt = 0.68f;
+    private float _cameraTiltVelocity;
     private double _totalSeconds;
 
     public Game1()
@@ -234,7 +243,7 @@ public class Game1 : Game
 
         DrawEnemyIntent();
 
-        foreach (var node in _game.Board.Nodes.OrderBy(node => GetNodeWorldPosition(node.Id).Y))
+        foreach (var node in _game.Board.Nodes.OrderBy(node => GetProjectedNode(node.Id).Depth))
         {
             DrawNode(node);
         }
@@ -242,6 +251,7 @@ public class Game1 : Game
         DrawVisualEffects();
         DrawText("CODEC_TACTICS", viewport.X + 18, viewport.Y + 16, 20, TextColor);
         DrawText(_game.ObjectiveText, viewport.X + 20, viewport.Y + 44, 13, MutedTextColor, viewport.Width - 42);
+        DrawLatticeReadout(viewport);
     }
 
     private void DrawNetworkBackdrop(XnaRectangle viewport)
@@ -279,6 +289,10 @@ public class Game1 : Game
             DrawLine(new Vector2(viewport.X, y + offset), new Vector2(viewport.Right, y - offset * 0.25f), new XnaColor(55, 67, 50, 10), 1);
         }
 
+        DrawDimensionalGrid(viewport);
+        DrawDistantNetworkActivity(viewport);
+        DrawBoardAtmosphere(viewport);
+        DrawForegroundScan(viewport);
         DrawRectangle(viewport, new XnaColor(50, 77, 75), 1);
     }
 
@@ -296,6 +310,58 @@ public class Game1 : Game
             DrawDiamond(new Vector2(x, y), size * 1.7f, new XnaColor(color.R, color.G, color.B, (byte)8), color);
             Fill(new XnaRectangle((int)x, (int)y, size * 5, 1), color);
         }
+    }
+
+    private void DrawDimensionalGrid(XnaRectangle viewport)
+    {
+        var positions = _game.Board.Nodes.Select(node => GetNodeWorldPosition(node.Id)).ToArray();
+        if (positions.Length == 0)
+        {
+            return;
+        }
+
+        var minX = positions.Min(position => position.X) - 220f;
+        var maxX = positions.Max(position => position.X) + 220f;
+        var minY = positions.Min(position => position.Y) - 220f;
+        var maxY = positions.Max(position => position.Y) + 220f;
+        const float spacing = 92f;
+
+        for (var x = MathF.Floor(minX / spacing) * spacing; x <= maxX; x += spacing)
+        {
+            var start = WorldToScreen(new Vector2(x, minY), -8f);
+            var end = WorldToScreen(new Vector2(x, maxY), -8f);
+            var alpha = (byte)(18 + GetPulse(0.9f, x * 0.011f) * 10);
+            DrawLine(start, end, new XnaColor((byte)71, (byte)126, (byte)118, alpha), 1);
+        }
+
+        for (var y = MathF.Floor(minY / spacing) * spacing; y <= maxY; y += spacing)
+        {
+            var start = WorldToScreen(new Vector2(minX, y), -8f);
+            var end = WorldToScreen(new Vector2(maxX, y), -8f);
+            var alpha = (byte)(16 + GetPulse(1.1f, y * 0.013f) * 10);
+            DrawLine(start, end, new XnaColor((byte)56, (byte)93, (byte)96, alpha), 1);
+        }
+
+        var axisColor = new XnaColor(137, 225, 208, 40);
+        DrawLine(WorldToScreen(new Vector2(minX, 0f), -4f), WorldToScreen(new Vector2(maxX, 0f), -4f), axisColor, 2);
+        DrawLine(WorldToScreen(new Vector2(0f, minY), -4f), WorldToScreen(new Vector2(0f, maxY), -4f), axisColor, 2);
+    }
+
+    private void DrawLatticeReadout(XnaRectangle viewport)
+    {
+        var yawDegrees = (int)MathF.Round(MathHelper.ToDegrees(_cameraYaw) % 360f);
+        if (yawDegrees < 0)
+        {
+            yawDegrees += 360;
+        }
+
+        var tiltPercent = (int)MathF.Round((_cameraTilt - MinCameraTilt) / (MaxCameraTilt - MinCameraTilt) * 100f);
+        var text = $"Yaw {yawDegrees:000}  Tilt {tiltPercent:00}%";
+        var texture = GetTextTexture(text, 12, MutedTextColor);
+        var bounds = new XnaRectangle(viewport.Right - texture.Width - 26, viewport.Y + 18, texture.Width + 14, texture.Height + 10);
+        Fill(bounds, new XnaColor(5, 10, 14, 168));
+        DrawRectangle(bounds, new XnaColor(48, 75, 78, 112), 1);
+        DrawText(text, bounds.X + 7, bounds.Y + 5, 12, MutedTextColor);
     }
 
     private void DrawBoardAtmosphere(XnaRectangle viewport)
@@ -318,13 +384,19 @@ public class Game1 : Game
     {
         var startNode = _game.Board.GetNode(connection.First);
         var endNode = _game.Board.GetNode(connection.Second);
-        var start = WorldToScreen(GetNodeWorldPosition(connection.First));
-        var end = WorldToScreen(GetNodeWorldPosition(connection.Second));
+        var startProjection = GetProjectedNode(connection.First);
+        var endProjection = GetProjectedNode(connection.Second);
+        var start = startProjection.Screen;
+        var end = endProjection.Screen;
+        var groundStart = WorldToScreen(GetNodeWorldPosition(connection.First), 0f);
+        var groundEnd = WorldToScreen(GetNodeWorldPosition(connection.Second), 0f);
         var active = connection.IsActive;
         var baseColor = GetConnectionColor(startNode, endNode, active);
         var flowColor = GetFlowColor(startNode, endNode);
-        var thickness = Math.Max(1, (int)(active ? 3 * _zoom : 1 * _zoom));
+        var connectionScale = (startProjection.Scale + endProjection.Scale) * 0.5f;
+        var thickness = Math.Max(1, (int)(active ? 3 * connectionScale : 1 * connectionScale));
 
+        DrawLine(groundStart, groundEnd, new XnaColor(0, 0, 0, 92), thickness + 8);
         DrawLine(start, end, new XnaColor(1, 3, 5, 220), thickness + 7);
         if (active)
         {
@@ -375,8 +447,10 @@ public class Game1 : Game
 
     private void DrawNode(NodeState node)
     {
-        var center = WorldToScreen(GetNodeWorldPosition(node.Id));
-        var radius = MathHelper.Clamp(NodeWorldRadius * _zoom, 20f, 34f);
+        var projection = GetProjectedNode(node.Id);
+        var center = projection.Screen;
+        var radius = MathHelper.Clamp(NodeWorldRadius * projection.Scale, 18f, 38f);
+        var ground = WorldToScreen(GetNodeWorldPosition(node.Id), 0f);
         var isHovered = _hoveredNode?.Id == node.Id;
         var isSelected = _selectedNodeId == node.Id;
         var isObjective = _game.ObjectiveNode == node.Id;
@@ -390,6 +464,7 @@ public class Game1 : Game
         radius += visual.HoverAmount * 3f + visual.SelectAmount * 3f + visual.SelectFlash * 3f + visual.ImpactFlash * 4f;
         center += GetShakeOffset(visual.Shake, node.Id);
 
+        DrawNodePylon(ground, center, node, projection.Scale);
         DrawNodeLighting(node, center, radius, ownerColor, typeColor, isObjective, pulse, visual);
         DrawCircleOutline(center, radius + 6f + pulse * 2f, new XnaColor(typeColor.R, typeColor.G, typeColor.B, node.Owner == NodeOwner.Neutral ? (byte)20 : (byte)46), 1);
         DrawCircleOutline(center, radius + 3f, new XnaColor(ownerColor.R, ownerColor.G, ownerColor.B, (byte)60), 1);
@@ -406,6 +481,11 @@ public class Game1 : Game
         if (isObjective)
         {
             DrawHexagon(center, radius + 16f + pulse * 4f, new XnaColor(ObjectiveColor.R, ObjectiveColor.G, ObjectiveColor.B, (byte)8), new XnaColor(ObjectiveColor.R, ObjectiveColor.G, ObjectiveColor.B, (byte)170));
+        }
+        else if (IsCoreCrisisNode(node))
+        {
+            DrawOctagon(center, radius + 23f + pulse * 6f, new XnaColor(LossColor.R, LossColor.G, LossColor.B, (byte)12), LossColor, 3);
+            DrawCircleOutline(center, radius + 31f + pulse * 8f, new XnaColor(LossColor.R, LossColor.G, LossColor.B, (byte)120), 2);
         }
         else if (IsEnemyIntentTarget(node.Id))
         {
@@ -454,8 +534,8 @@ public class Game1 : Game
             return;
         }
 
-        var start = WorldToScreen(GetNodeWorldPosition(result.EnemyActionSource.Value));
-        var end = WorldToScreen(GetNodeWorldPosition(target.Value));
+        var start = GetProjectedNode(result.EnemyActionSource.Value).Screen;
+        var end = GetProjectedNode(target.Value).Screen;
         var color = result.CorruptionTarget.HasValue ? new XnaColor(255, 105, 124, 210) : new XnaColor(255, 174, 88, 190);
         var pulse = GetPulse(4.8f, target.Value.X * 0.17f + target.Value.Y * 0.23f);
 
@@ -585,15 +665,16 @@ public class Game1 : Game
         {
             var progress = Math.Clamp(1f - effect.TimeRemaining / effect.Duration, 0f, 1f);
             var eased = EaseOut(progress);
-            var center = WorldToScreen(GetNodeWorldPosition(effect.NodeId));
+            var projected = GetProjectedNode(effect.NodeId);
+            var center = projected.Screen;
             var radius = effect.StartRadius + (effect.EndRadius - effect.StartRadius) * eased;
             var alpha = (byte)Math.Clamp(effect.Color.A * (1f - progress), 0f, 255f);
             var color = new XnaColor(effect.Color.R, effect.Color.G, effect.Color.B, alpha);
 
-            DrawCircleOutline(center, radius * _zoom, color, effect.Thickness);
+            DrawCircleOutline(center, radius * projected.Scale, color, effect.Thickness);
             if (effect.Kind == VisualEffectKind.Burst)
             {
-                var spokeLength = radius * _zoom * 0.42f;
+                var spokeLength = radius * projected.Scale * 0.42f;
                 for (var i = 0; i < 8; i++)
                 {
                     var angle = MathHelper.TwoPi * i / 8f + progress * 0.8f;
@@ -638,9 +719,11 @@ public class Game1 : Game
         y = DrawActionButton(x, y + 7, "2", "Reinforce", PlayerActionMode.Reinforce, AccentColor);
         y = DrawActionButton(x, y + 7, "3", "Weaken", PlayerActionMode.Weaken, WarningColor);
         y = DrawCommandButton(x, y + 12, "Space", "End", ButtonAction.EndTurn);
+        y = DrawCommandButton(x, y + 7, "F", "Flip", ButtonAction.FlipBoard);
+        y = DrawCommandButton(x, y + 7, "C", "Center", ButtonAction.RecenterView);
         y = DrawCommandButton(x, y + 7, "R", "Replay", ButtonAction.Restart);
         y = DrawCommandButton(x, y + 7, "N", "New Seed", ButtonAction.NewMission);
-        y += 14;
+        y += 10;
 
         y = DrawTacticalGuide(x, y, hud.Width - TextPadding * 2);
         y += 14;
@@ -683,7 +766,10 @@ public class Game1 : Game
     {
         var resourceCount = _game.Board.Nodes.Count(node => node.Owner == NodeOwner.Player && node.Type == NodeType.Resource);
         var income = resourceCount * _game.Configuration.ResourceEnergyPerTurn;
-        var energyLine = _game.PlayerEnergy == 0
+        var core = _game.Board.GetNode(_game.PlayerCore);
+        var energyLine = IsCoreInCrisis()
+            ? $"Core {_game.PlayerCore} unstable {core.UnstableTurns}/{_game.Configuration.InstabilityTurnsBeforeCollapse}: defend now."
+            : _game.PlayerEnergy == 0
             ? income > 0
                 ? $"0 energy: End Turn; Resources restore +{income}."
                 : "0 energy: End Turn resolves pressure."
@@ -819,6 +905,14 @@ public class Game1 : Game
             {
                 StartNewMission();
             }
+            else if (button.Action == ButtonAction.FlipBoard)
+            {
+                FlipBoardView();
+            }
+            else if (button.Action == ButtonAction.RecenterView)
+            {
+                RecenterCamera(immediate: false);
+            }
 
             return;
         }
@@ -851,8 +945,17 @@ public class Game1 : Game
         if ((mouse.RightButton == ButtonState.Pressed || mouse.MiddleButton == ButtonState.Pressed) && mouseInsideNetwork)
         {
             var delta = mouse.Position.ToVector2() - _previousMouse.Position.ToVector2();
-            _targetCameraCenter -= delta / Math.Max(0.1f, _zoom);
-            _cameraVelocity = -delta / Math.Max(0.1f, _zoom) * 0.08f;
+            if (keyboard.IsKeyDown(Keys.LeftShift) || keyboard.IsKeyDown(Keys.RightShift))
+            {
+                _targetCameraYaw += delta.X * 0.006f;
+                _targetCameraTilt = MathHelper.Clamp(_targetCameraTilt - delta.Y * 0.004f, MinCameraTilt, MaxCameraTilt);
+            }
+            else
+            {
+                var worldDelta = ScreenDeltaToWorld(delta / Math.Max(0.1f, _zoom));
+                _targetCameraCenter -= worldDelta;
+                _cameraVelocity = -worldDelta * 0.08f;
+            }
         }
 
         var keyboardPan = Vector2.Zero;
@@ -878,8 +981,68 @@ public class Game1 : Game
 
         if (keyboardPan != Vector2.Zero)
         {
-            _targetCameraCenter += Vector2.Normalize(keyboardPan) * 10f / Math.Max(0.1f, _zoom);
+            _targetCameraCenter += ScreenDeltaToWorld(Vector2.Normalize(keyboardPan)) * 10f / Math.Max(0.1f, _zoom);
         }
+
+        var orbitDirection = 0f;
+        if (keyboard.IsKeyDown(Keys.Q))
+        {
+            orbitDirection -= 1f;
+        }
+
+        if (keyboard.IsKeyDown(Keys.E))
+        {
+            orbitDirection += 1f;
+        }
+
+        if (orbitDirection != 0f)
+        {
+            _targetCameraYaw += orbitDirection * 0.034f;
+        }
+
+        var tiltDirection = 0f;
+        if (keyboard.IsKeyDown(Keys.PageUp))
+        {
+            tiltDirection += 1f;
+        }
+
+        if (keyboard.IsKeyDown(Keys.PageDown))
+        {
+            tiltDirection -= 1f;
+        }
+
+        if (tiltDirection != 0f)
+        {
+            _targetCameraTilt = MathHelper.Clamp(_targetCameraTilt + tiltDirection * 0.026f, MinCameraTilt, MaxCameraTilt);
+        }
+
+        if (WasPressed(keyboard, Keys.F))
+        {
+            FlipBoardView();
+        }
+
+        if (WasPressed(keyboard, Keys.Home))
+        {
+            _targetCameraYaw = 0f;
+            _targetCameraTilt = 0.68f;
+            RecenterCamera(immediate: false);
+        }
+
+        ConstrainCameraToMap();
+    }
+
+    private void DrawNodePylon(Vector2 ground, Vector2 center, NodeState node, float scale)
+    {
+        var color = node.Owner == NodeOwner.Enemy
+            ? new XnaColor(LossColor.R, LossColor.G, LossColor.B, (byte)74)
+            : node.Owner == NodeOwner.Player
+                ? new XnaColor(AccentColor.R, AccentColor.G, AccentColor.B, (byte)74)
+                : new XnaColor(NeutralColor.R, NeutralColor.G, NeutralColor.B, (byte)58);
+        var shadowRadius = MathHelper.Clamp(NodeWorldRadius * scale * 1.3f, 18f, 44f);
+        DrawCircle(ground, shadowRadius, new XnaColor(0, 0, 0, 76));
+        DrawCircleOutline(ground, shadowRadius * 0.82f, new XnaColor(color.R, color.G, color.B, (byte)38), 1);
+        DrawLine(ground, center, new XnaColor(color.R, color.G, color.B, (byte)58), 2);
+        DrawLine(ground + new Vector2(-3f, 0f), center + new Vector2(-3f, 0f), new XnaColor(14, 24, 28, 84), 1);
     }
 
     private void UpdateCameraMotion()
@@ -905,6 +1068,30 @@ public class Game1 : Game
             _zoom = _targetZoom;
             _zoomVelocity = 0f;
         }
+
+        var desiredYawVelocity = GetShortestAngleDelta(_cameraYaw, _targetCameraYaw) * CameraFollow;
+        _cameraYawVelocity = MathHelper.Lerp(_cameraYawVelocity, desiredYawVelocity, 0.36f);
+        _cameraYaw += _cameraYawVelocity;
+        _cameraYawVelocity *= CameraInertia;
+
+        var desiredTiltVelocity = (_targetCameraTilt - _cameraTilt) * CameraFollow;
+        _cameraTiltVelocity = MathHelper.Lerp(_cameraTiltVelocity, desiredTiltVelocity, 0.36f);
+        _cameraTilt += _cameraTiltVelocity;
+        _cameraTiltVelocity *= CameraInertia;
+
+        if (MathF.Abs(GetShortestAngleDelta(_cameraYaw, _targetCameraYaw)) < 0.001f)
+        {
+            _cameraYaw = _targetCameraYaw;
+            _cameraYawVelocity = 0f;
+        }
+
+        if (MathF.Abs(_cameraTilt - _targetCameraTilt) < 0.001f)
+        {
+            _cameraTilt = _targetCameraTilt;
+            _cameraTiltVelocity = 0f;
+        }
+
+        ConstrainCameraToMap();
     }
 
     private void SelectAction(PlayerActionMode action)
@@ -1164,6 +1351,11 @@ public class Game1 : Game
     private ActionPreview PreviewClaim(NodeState node)
     {
         var cost = _game.Configuration.ClaimEnergyCost;
+        if (IsCoreInCrisis())
+        {
+            return new ActionPreview(false, "Core collapsing. Reinforce core or weaken adjacent corruption first.", cost.ToString(), "Stabilize core", cost);
+        }
+
         if (node.Owner != NodeOwner.Neutral)
         {
             return new ActionPreview(false, "Only neutral nodes can be claimed.", cost.ToString(), "Claim node", cost);
@@ -1190,6 +1382,11 @@ public class Game1 : Game
             return new ActionPreview(false, "Only player nodes can be reinforced.", cost.ToString(), "Reinforce node", cost);
         }
 
+        if (IsCoreInCrisis() && node.Id != _game.PlayerCore)
+        {
+            return new ActionPreview(false, $"Core {_game.PlayerCore} is the collapse risk.", cost.ToString(), "Reinforce core", cost);
+        }
+
         if (_game.PlayerEnergy < cost)
         {
             return new ActionPreview(false, $"Need {cost} energy.", cost.ToString(), "Reinforce node", cost);
@@ -1214,6 +1411,11 @@ public class Game1 : Game
         if (!_game.Board.GetAdjacentNodes(node.Id).Any(adjacent => adjacent.Owner == NodeOwner.Player))
         {
             return new ActionPreview(false, "No adjacent player link.", cost.ToString(), "Weaken link", cost);
+        }
+
+        if (IsCoreInCrisis() && !_game.Board.AreConnected(node.Id, _game.PlayerCore))
+        {
+            return new ActionPreview(false, $"Only links touching core {_game.PlayerCore} can save this turn.", cost.ToString(), "Weaken core link", cost);
         }
 
         return new ActionPreview(true, string.Empty, cost.ToString(), $"Weaken link to {node.Id}.", cost);
@@ -1249,6 +1451,11 @@ public class Game1 : Game
     private string FormatNoClaimTargetsStatus()
     {
         var cost = _game.Configuration.ClaimEnergyCost;
+        if (IsCoreInCrisis())
+        {
+            return $"Claim blocked: core {_game.PlayerCore} is collapsing. Reinforce it or weaken the touching corruption link.";
+        }
+
         if (_game.PlayerEnergy < cost)
         {
             return $"Claim: 0 targets. Need {cost} energy; End Turn can restore energy from owned Resources.";
@@ -1265,6 +1472,11 @@ public class Game1 : Game
     private string FormatNoReinforceTargetsStatus()
     {
         var cost = _game.Configuration.ReinforceEnergyCost;
+        if (IsCoreInCrisis() && _game.PlayerEnergy >= cost)
+        {
+            return $"Reinforce: stabilize core {_game.PlayerCore} before expanding.";
+        }
+
         if (_game.PlayerEnergy < cost)
         {
             return $"Reinforce: 0 targets. Need {cost} energy; End Turn can restore energy from owned Resources.";
@@ -1276,6 +1488,11 @@ public class Game1 : Game
     private string FormatNoWeakenTargetsStatus()
     {
         var cost = _game.Configuration.WeakenConnectionEnergyCost;
+        if (IsCoreInCrisis() && _game.PlayerEnergy >= cost)
+        {
+            return $"Weaken: only corruption touching core {_game.PlayerCore} can stop collapse.";
+        }
+
         if (_game.PlayerEnergy < cost)
         {
             return $"Weaken: 0 targets. Need {cost} energy; End Turn can restore energy from owned Resources.";
@@ -1297,9 +1514,14 @@ public class Game1 : Game
         }
 
         return _game.Board.Nodes
-            .Select(node => new { Node = node, Distance = Vector2.Distance(WorldToScreen(GetNodeWorldPosition(node.Id)), mousePosition.ToVector2()) })
-            .Where(candidate => candidate.Distance <= NodeWorldRadius * _zoom + 16f)
+            .Select(node =>
+            {
+                var projection = GetProjectedNode(node.Id);
+                return new { Node = node, projection.Depth, Distance = Vector2.Distance(projection.Screen, mousePosition.ToVector2()), projection.Scale };
+            })
+            .Where(candidate => candidate.Distance <= NodeWorldRadius * candidate.Scale + 16f)
             .OrderBy(candidate => candidate.Distance)
+            .ThenByDescending(candidate => candidate.Depth)
             .Select(candidate => candidate.Node)
             .FirstOrDefault();
     }
@@ -1342,6 +1564,15 @@ public class Game1 : Game
         }
     }
 
+    private void FlipBoardView()
+    {
+        _targetCameraYaw += MathHelper.Pi;
+        _status = "View flipped. Lattice orientation inverted.";
+        Log(_status);
+        _audio.Play(AudioCue.Select, 0.42f);
+        ConstrainCameraToMap();
+    }
+
     private XnaRectangle GetBoardViewport()
     {
         return new XnaRectangle(22, 22, WindowWidth - HudWidth - 58, WindowHeight - 44);
@@ -1368,10 +1599,133 @@ public class Game1 : Game
         return new Vector2(nodeId.X * 170f + xOffset, nodeId.Y * 148f);
     }
 
-    private Vector2 WorldToScreen(Vector2 world)
+    private ProjectedNode GetProjectedNode(NodeId nodeId)
+    {
+        var node = _game.Board.GetNode(nodeId);
+        return ProjectWorld(GetNodeWorldPosition(nodeId), GetNodeHeight(node));
+    }
+
+    private Vector2 WorldToScreen(Vector2 world, float height = 0f)
+    {
+        return ProjectWorld(world, height).Screen;
+    }
+
+    private ProjectedNode ProjectWorld(Vector2 world, float height)
     {
         var viewport = GetBoardViewport();
-        return new Vector2(viewport.X + viewport.Width / 2f, viewport.Y + viewport.Height / 2f) + (world - _cameraCenter) * _zoom;
+        var translated = world - _cameraCenter;
+        var rotated = Rotate(translated, _cameraYaw);
+        var tiltCos = MathF.Cos(_cameraTilt);
+        var tiltSin = MathF.Sin(_cameraTilt);
+        var screenCenter = new Vector2(viewport.X + viewport.Width / 2f, viewport.Y + viewport.Height / 2f);
+        var depth = rotated.Y * tiltSin + height * tiltCos;
+        var scale = _zoom * MathHelper.Clamp(1f + depth * 0.00042f, 0.76f, 1.22f);
+        var screen = screenCenter + new Vector2(rotated.X, rotated.Y * tiltCos - height * tiltSin) * scale;
+        return new ProjectedNode(screen, depth, scale);
+    }
+
+    private void ConstrainCameraToMap()
+    {
+        var bounds = GetProjectedMapBounds();
+        var viewport = GetBoardViewport();
+        var leftGuard = viewport.X + CameraMapGuard;
+        var rightGuard = viewport.Right - CameraMapGuard;
+        var topGuard = viewport.Y + CameraMapGuard;
+        var bottomGuard = viewport.Bottom - CameraMapGuard;
+        var correction = Vector2.Zero;
+
+        if (bounds.Right < leftGuard)
+        {
+            correction.X = leftGuard - bounds.Right;
+        }
+        else if (bounds.Left > rightGuard)
+        {
+            correction.X = rightGuard - bounds.Left;
+        }
+
+        if (bounds.Bottom < topGuard)
+        {
+            correction.Y = topGuard - bounds.Bottom;
+        }
+        else if (bounds.Top > bottomGuard)
+        {
+            correction.Y = bottomGuard - bounds.Top;
+        }
+
+        if (correction == Vector2.Zero)
+        {
+            return;
+        }
+
+        var centerCorrection = -ScreenDeltaToWorld(correction / Math.Max(0.1f, _zoom));
+        _cameraCenter += centerCorrection;
+        _targetCameraCenter += centerCorrection;
+        _cameraVelocity = Vector2.Zero;
+    }
+
+    private ProjectedBounds GetProjectedMapBounds()
+    {
+        var points = _game.Board.Nodes
+            .SelectMany(node =>
+            {
+                var world = GetNodeWorldPosition(node.Id);
+                var height = GetNodeHeight(node);
+                return new[] { ProjectWorld(world, height).Screen, ProjectWorld(world, 0f).Screen };
+            })
+            .ToArray();
+
+        return new ProjectedBounds(
+            points.Min(point => point.X),
+            points.Min(point => point.Y),
+            points.Max(point => point.X),
+            points.Max(point => point.Y));
+    }
+
+    private Vector2 ScreenDeltaToWorld(Vector2 screenDelta)
+    {
+        return Rotate(screenDelta, -_cameraYaw);
+    }
+
+    private static Vector2 Rotate(Vector2 value, float radians)
+    {
+        var sin = MathF.Sin(radians);
+        var cos = MathF.Cos(radians);
+        return new Vector2(value.X * cos - value.Y * sin, value.X * sin + value.Y * cos);
+    }
+
+    private static float GetShortestAngleDelta(float current, float target)
+    {
+        var delta = (target - current) % MathHelper.TwoPi;
+        if (delta > MathHelper.Pi)
+        {
+            delta -= MathHelper.TwoPi;
+        }
+        else if (delta < -MathHelper.Pi)
+        {
+            delta += MathHelper.TwoPi;
+        }
+
+        return delta;
+    }
+
+    private float GetNodeHeight(NodeState node)
+    {
+        var layer = ((node.Id.X * 2 + node.Id.Y) % 3 - 1) * 34f;
+        var typeLift = node.Type switch
+        {
+            NodeType.Relay => 26f,
+            NodeType.Firewall => 18f,
+            NodeType.Resource => 12f,
+            _ => 0f
+        };
+        var ownershipLift = node.Owner switch
+        {
+            NodeOwner.Player => 18f,
+            NodeOwner.Enemy => 10f,
+            _ => 0f
+        };
+        var objectiveLift = node.Id == _game.ObjectiveNode ? 34f : 0f;
+        return 76f + layer + typeLift + ownershipLift + objectiveLift;
     }
 
     private string GetTypeLabel(NodeState node)
@@ -1496,6 +1850,12 @@ public class Game1 : Game
     private IReadOnlyList<GuideRow> BuildForecastGuideRows()
     {
         var rows = new List<GuideRow>();
+        var core = _game.Board.GetNode(_game.PlayerCore);
+        if (IsCoreInCrisis())
+        {
+            rows.Add(new GuideRow("Critical", $"Core {_game.PlayerCore} unstable {core.UnstableTurns}/{_game.Configuration.InstabilityTurnsBeforeCollapse}. Reinforce or weaken now.", LossColor));
+        }
+
         var forecastPressure = _game.CorruptionPressure + _game.Configuration.CorruptionPressureGrowthPerTurn;
         var decision = TacticalEnemyPlanner.SelectDecision(_game.Board, _game.Configuration, _game.PlayerCore, _game.ObjectiveNode, forecastPressure, _game.TurnNumber);
         if (decision.Target.HasValue)
@@ -1556,7 +1916,8 @@ public class Game1 : Game
     {
         return _game.Board.Nodes
             .Where(node => node.Owner == NodeOwner.Player && node.IsUnstable)
-            .OrderByDescending(node => node.UnstableTurns)
+            .OrderByDescending(node => node.Id == _game.PlayerCore)
+            .ThenByDescending(node => node.UnstableTurns)
             .ThenByDescending(node => node.Threat - node.Integrity)
             .ThenBy(node => node.Id)
             .FirstOrDefault();
@@ -1708,6 +2069,21 @@ public class Game1 : Game
     {
         var result = _game.LastActionResult;
         return result.CorruptionTarget == nodeId || result.CorruptionFocusTarget == nodeId;
+    }
+
+    private bool IsCoreInCrisis()
+    {
+        var core = _game.Board.GetNode(_game.PlayerCore);
+        var urgentTurn = Math.Max(1, _game.Configuration.InstabilityTurnsBeforeCollapse - 1);
+        return _game.Result == GameResult.InProgress
+            && core.Owner == NodeOwner.Player
+            && core.IsUnstable
+            && core.UnstableTurns >= urgentTurn;
+    }
+
+    private bool IsCoreCrisisNode(NodeState node)
+    {
+        return node.Id == _game.PlayerCore && IsCoreInCrisis();
     }
 
     private float GetPulse(float speed, float offset)
@@ -2023,6 +2399,10 @@ public class Game1 : Game
 
     private readonly record struct ActionPreview(bool IsValid, string Reason, string Cost, string SuccessText, int EnergyCost);
 
+    private readonly record struct ProjectedNode(Vector2 Screen, float Depth, float Scale);
+
+    private readonly record struct ProjectedBounds(float Left, float Top, float Right, float Bottom);
+
     private sealed class NodeVisualState
     {
         public NodeVisualState(NodeOwner owner)
@@ -2060,6 +2440,8 @@ public class Game1 : Game
     {
         SelectAction,
         EndTurn,
+        FlipBoard,
+        RecenterView,
         Restart,
         NewMission
     }

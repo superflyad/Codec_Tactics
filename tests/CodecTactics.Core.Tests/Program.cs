@@ -47,6 +47,7 @@ var tests = new (string Name, Action Test)[]
     ("invalid actions after game over do not mutate mission", InvalidActionsAfterGameOverDoNotMutateMission),
     ("procedural mission generation is deterministic", ProceduralMissionGenerationIsDeterministic),
     ("procedural mission seeds create different layouts", ProceduralMissionSeedsCreateDifferentLayouts),
+    ("procedural mission keeps generated nodes reachable", ProceduralMissionKeepsGeneratedNodesReachable),
     ("procedural mission satisfies graph validity", ProceduralMissionSatisfiesGraphValidity),
     ("procedural mission placement follows gameplay constraints", ProceduralMissionPlacementFollowsGameplayConstraints),
     ("procedural layout is readable and complete", ProceduralLayoutIsReadableAndComplete),
@@ -661,6 +662,26 @@ static void ProceduralMissionSeedsCreateDifferentLayouts()
     var second = ProceduralMissionGenerator.Generate("beta-network");
 
     AssertFalse(DescribeDefinition(first.BoardDefinition) == DescribeDefinition(second.BoardDefinition), "Expected different seeds to produce different mission topology or layout.");
+}
+
+static void ProceduralMissionKeepsGeneratedNodesReachable()
+{
+    var screenshotSeedMission = ProceduralMissionGenerator.Generate("codec-milestone-6");
+    AssertEqual(screenshotSeedMission.BoardDefinition.Nodes.Count, GetReachableNodes(screenshotSeedMission.BoardDefinition, screenshotSeedMission.BoardDefinition.PlayerStart).Count);
+
+    var settings = ProceduralMissionSettings.Default with
+    {
+        NodeCount = 24,
+        ObjectiveDistance = 6,
+        MaxBranchingFactor = 2,
+        GraphDensity = 0.08d
+    };
+
+    for (var seed = 0; seed < 40; seed++)
+    {
+        var mission = ProceduralMissionGenerator.Generate(seed, settings);
+        AssertEqual(mission.BoardDefinition.Nodes.Count, GetReachableNodes(mission.BoardDefinition, mission.BoardDefinition.PlayerStart).Count);
+    }
 }
 
 static void ProceduralMissionSatisfiesGraphValidity()

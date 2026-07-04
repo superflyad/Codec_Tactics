@@ -108,7 +108,7 @@ public static class ProceduralMissionGenerator
                     .Take(Math.Min(2, previousLayer.Count))
                     .ToList();
                 var anchor = anchors[random.Next(anchors.Count)];
-                AddLink(links, degree, anchor, node, settings.MaxBranchingFactor + 1);
+                AddRequiredLink(links, degree, anchor, node);
             }
         }
 
@@ -118,7 +118,7 @@ public static class ProceduralMissionGenerator
             foreach (var node in layers[depth].OrderBy(node => node.Y))
             {
                 var nearest = previousLayer.OrderBy(candidate => Math.Abs(candidate.Y - node.Y)).ThenBy(candidate => candidate.Y).First();
-                AddLink(links, degree, nearest, node, settings.MaxBranchingFactor + 1);
+                AddRequiredLink(links, degree, nearest, node);
             }
         }
 
@@ -163,6 +163,20 @@ public static class ProceduralMissionGenerator
     private static void AddLink(ISet<NetworkLink> links, IDictionary<NodeId, int> degree, NodeId first, NodeId second, int maxDegree)
     {
         if (first.Equals(second) || degree[first] >= maxDegree || degree[second] >= maxDegree)
+        {
+            return;
+        }
+
+        if (links.Add(new NetworkLink(first, second)))
+        {
+            degree[first]++;
+            degree[second]++;
+        }
+    }
+
+    private static void AddRequiredLink(ISet<NetworkLink> links, IDictionary<NodeId, int> degree, NodeId first, NodeId second)
+    {
+        if (first.Equals(second))
         {
             return;
         }
@@ -241,9 +255,9 @@ public static class ProceduralMissionGenerator
             [objectiveNode] = NodeType.Firewall
         };
 
-        AssignType(nodeTypes, candidates, NodeType.Relay, Math.Max(1, (int)Math.Round(nodes.Count * settings.RelayFrequency)), random, node => distances[node] >= 1 && distances[node] <= Math.Max(2, settings.ObjectiveDistance - 1));
-        AssignType(nodeTypes, candidates, NodeType.Resource, Math.Max(1, (int)Math.Round(nodes.Count * settings.ResourceFrequency)), random, node => distances[node] <= Math.Max(3, settings.ObjectiveDistance - 1));
-        AssignType(nodeTypes, candidates, NodeType.Firewall, Math.Max(1, (int)Math.Round(nodes.Count * settings.FirewallFrequency)), random, node => distances[node] >= Math.Max(2, settings.ObjectiveDistance / 2));
+        AssignType(nodeTypes, candidates, NodeType.Relay, Math.Max(1, (int)Math.Round(nodes.Count * settings.RelayFrequency)), random, node => distances.TryGetValue(node, out var distance) && distance >= 1 && distance <= Math.Max(2, settings.ObjectiveDistance - 1));
+        AssignType(nodeTypes, candidates, NodeType.Resource, Math.Max(1, (int)Math.Round(nodes.Count * settings.ResourceFrequency)), random, node => distances.TryGetValue(node, out var distance) && distance <= Math.Max(3, settings.ObjectiveDistance - 1));
+        AssignType(nodeTypes, candidates, NodeType.Firewall, Math.Max(1, (int)Math.Round(nodes.Count * settings.FirewallFrequency)), random, node => distances.TryGetValue(node, out var distance) && distance >= Math.Max(2, settings.ObjectiveDistance / 2));
 
         return nodeTypes;
     }
