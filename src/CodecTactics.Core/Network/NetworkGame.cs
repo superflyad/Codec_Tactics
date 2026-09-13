@@ -81,9 +81,61 @@ public sealed class NetworkGame
         return CreateMission(ProceduralMissionGenerator.Generate(seed, settings));
     }
 
+    public GameSnapshot CreateSnapshot()
+    {
+        return new GameSnapshot(
+            BoardDefinition,
+            Configuration,
+            MissionDefinition,
+            TurnNumber,
+            PlayerEnergy,
+            CorruptionPressure,
+            Phase,
+            Result,
+            ObjectiveHoldTurns,
+            LastActionResult,
+            LastEnemyDecision,
+            Board.Nodes
+                .OrderBy(node => node.Id)
+                .Select(node => new NodeSnapshot(node.Id, node.Owner, node.Integrity, node.ReinforcementLevel, node.Threat, node.UnstableTurns, node.DangerReason))
+                .ToList(),
+            Board.Connections
+                .OrderBy(connection => connection.First)
+                .ThenBy(connection => connection.Second)
+                .Select(connection => new ConnectionSnapshot(connection.First, connection.Second, connection.Strength))
+                .ToList());
+    }
+
+    public static NetworkGame RestoreSnapshot(GameSnapshot snapshot)
+    {
+        var game = new NetworkGame(snapshot.BoardDefinition, snapshot.Configuration, snapshot.MissionDefinition);
+        game.TurnNumber = snapshot.TurnNumber;
+        game.PlayerEnergy = snapshot.PlayerEnergy;
+        game.CorruptionPressure = snapshot.CorruptionPressure;
+        game.Phase = snapshot.Phase;
+        game.Result = snapshot.Result;
+        game.ObjectiveHoldTurns = snapshot.ObjectiveHoldTurns;
+        game.LastActionResult = snapshot.LastActionResult;
+        game.LastEnemyDecision = snapshot.LastEnemyDecision;
+
+        foreach (var nodeSnapshot in snapshot.Nodes)
+        {
+            game.Board.GetNode(nodeSnapshot.Id).RestoreSnapshot(nodeSnapshot);
+        }
+
+        foreach (var connectionSnapshot in snapshot.Connections)
+        {
+            var connection = game.Board.FindConnection(connectionSnapshot.First, connectionSnapshot.Second)
+                ?? throw new InvalidOperationException($"Snapshot connection {connectionSnapshot.First}-{connectionSnapshot.Second} does not exist in the board definition.");
+            connection.RestoreSnapshot(connectionSnapshot);
+        }
+
+        return game;
+    }
+
     public IReadOnlyList<NodeId> RefreshNetworkRisk(bool advanceInstability = false)
     {
-        return NetworkIntegrityEvaluator.Evaluate(Board, PlayerCore, CorruptionPressure, Configuration, advanceInstability);
+        return NetworkIntegrityEvaluator.Evaluate(BoardDefinition, Board, PlayerCore, CorruptionPressure, Configuration, advanceInstability);
     }
 
     public bool ClaimNode(NodeId target)
@@ -280,7 +332,7 @@ public sealed class NetworkGame
     {
         CorruptionPressure += Configuration.CorruptionPressureGrowthPerTurn;
         var collapsed = RefreshNetworkRisk(advanceInstability: true);
-        var decision = TacticalEnemyPlanner.SelectDecision(Board, Configuration, PlayerCore, ObjectiveNode, CorruptionPressure, TurnNumber);
+        var decision = TacticalEnemyPlanner.SelectDecision(BoardDefinition, Board, Configuration, PlayerCore, ObjectiveNode, CorruptionPressure, TurnNumber);
         LastEnemyDecision = decision;
         var expansionTarget = decision.Target;
 
@@ -322,9 +374,11 @@ public sealed class NetworkGame
 
     private int GetCorruptionResistance(NodeState node)
     {
-        return node.Type == NodeType.Firewall
+        var baseResistance = node.Type == NodeType.Firewall
             ? Configuration.FirewallCorruptionResistance
             : Configuration.StandardCorruptionResistance;
+        var layer = BoardDefinition.GetLayer(node.Id);
+        return Math.Max(1, baseResistance + Configuration.GetLayerModifier(layer).CorruptionResistanceBonus);
     }
 
     private GameActionResult SetLastAction(

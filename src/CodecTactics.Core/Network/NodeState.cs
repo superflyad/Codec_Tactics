@@ -64,4 +64,19 @@ public sealed class NodeState
             UnstableTurns = 0;
         }
     }
+
+    internal void RestoreSnapshot(NodeSnapshot snapshot)
+    {
+        if (!Id.Equals(snapshot.Id))
+        {
+            throw new ArgumentException($"Snapshot for {snapshot.Id} cannot restore node {Id}.", nameof(snapshot));
+        }
+
+        Owner = snapshot.Owner;
+        Integrity = Math.Max(1, snapshot.Integrity);
+        ReinforcementLevel = Math.Max(0, snapshot.ReinforcementLevel);
+        Threat = Math.Max(0, snapshot.Threat);
+        UnstableTurns = Math.Max(0, snapshot.UnstableTurns);
+        DangerReason = string.IsNullOrWhiteSpace(snapshot.DangerReason) ? "Stable." : snapshot.DangerReason;
+    }
 }

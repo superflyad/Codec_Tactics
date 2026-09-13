@@ -81,6 +81,7 @@ public class Game1 : Game
     private readonly List<string> _actionLog = new();
     private readonly List<ButtonDefinition> _buttons = new();
     private readonly AudioService _audio = new();
+    private readonly SeedHistoryStore _seedHistoryStore = new();
     private readonly Dictionary<NodeId, NodeVisualState> _nodeVisuals = new();
     private readonly List<VisualEffect> _visualEffects = new();
 
@@ -89,8 +90,14 @@ public class Game1 : Game
     private Texture2D _softCircle = default!;
     private MouseState _previousMouse;
     private KeyboardState _previousKeyboard;
-    private ProceduralSeed _activeSeed = ProceduralSeed.FromText("codec-milestone-6");
-    private NetworkGame _game = CreateMissionGame(ProceduralSeed.FromText("codec-milestone-6"));
+    private CampaignMissionPlan _missionPlan;
+    private ProceduralSeed _activeSeed;
+    private NetworkGame _game;
+    private AppScreen _appScreen = AppScreen.Title;
+    private int _selectedSaveSlot;
+    private int _focusedLayer = -1;
+    private string _saveSlotLine = string.Empty;
+    private string _profileLine = string.Empty;
     private PlayerActionMode _selectedAction = PlayerActionMode.Claim;
     private string _status = "Mission ready. Trace the generated network.";
     private string _invalidReason = string.Empty;
@@ -118,13 +125,20 @@ public class Game1 : Game
         _graphics.PreferredBackBufferHeight = WindowHeight;
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
+        _missionPlan = CreateCampaignPlan();
+        _activeSeed = _missionPlan.Seed;
+        _game = CreateMissionGame(_missionPlan);
+        _selectedSaveSlot = _seedHistoryStore.GetSelectedSlot();
+        RefreshSaveSlotLine();
+        RefreshProfileLine();
+        _seedHistoryStore.RecordStarted(_activeSeed);
     }
 
     protected override void Initialize()
     {
         Window.Title = "Codec_Tactics";
         RecenterCamera(immediate: true);
-        Log($"Seed {_activeSeed.Text} loaded.");
+        Log($"{_missionPlan.Briefing} loaded.");
         base.Initialize();
     }
 
@@ -156,7 +170,7 @@ public class Game1 : Game
         var mouse = Mouse.GetState();
         _totalSeconds = gameTime.TotalGameTime.TotalSeconds;
 
-        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || keyboard.IsKeyDown(Keys.Escape))
+        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
         {
             Exit();
         }
@@ -176,7 +190,24 @@ public class Game1 : Game
 
         UpdatePresentation((float)gameTime.ElapsedGameTime.TotalSeconds);
 
-        if (WasPressed(keyboard, Keys.D1))
+        if (_appScreen == AppScreen.Title)
+        {
+            HandleTitleInput(keyboard, mouse);
+            Window.Title = "Codec_Tactics | Operations";
+            _previousKeyboard = keyboard;
+            _previousMouse = mouse;
+            base.Update(gameTime);
+            return;
+        }
+
+        if (WasPressed(keyboard, Keys.Escape))
+        {
+            _appScreen = AppScreen.Title;
+            _status = "Operations screen opened.";
+            _invalidReason = string.Empty;
+            _audio.Play(AudioCue.Select, 0.36f);
+        }
+        else if (WasPressed(keyboard, Keys.D1))
         {
             SelectAction(PlayerActionMode.Claim);
         }
@@ -200,6 +231,34 @@ public class Game1 : Game
         {
             StartNewMission();
         }
+        else if (WasPressed(keyboard, Keys.S))
+        {
+            SaveMission();
+        }
+        else if (WasPressed(keyboard, Keys.L))
+        {
+            LoadMission();
+        }
+        else if (WasPressed(keyboard, Keys.F1))
+        {
+            SelectSaveSlot(1);
+        }
+        else if (WasPressed(keyboard, Keys.F2))
+        {
+            SelectSaveSlot(2);
+        }
+        else if (WasPressed(keyboard, Keys.F3))
+        {
+            SelectSaveSlot(3);
+        }
+        else if (WasPressed(keyboard, Keys.OemOpenBrackets))
+        {
+            CycleLayerFocus(-1);
+        }
+        else if (WasPressed(keyboard, Keys.OemCloseBrackets))
+        {
+            CycleLayerFocus(1);
+        }
         else if (WasPressed(keyboard, Keys.C))
         {
             RecenterCamera(immediate: false);
@@ -222,9 +281,16 @@ public class Game1 : Game
 
         _spriteBatch.Begin(blendState: BlendState.NonPremultiplied, samplerState: SamplerState.LinearClamp);
         DrawNetwork();
-        DrawHud();
-        DrawHoverTooltip();
-        DrawResultBanner();
+        if (_appScreen == AppScreen.Title)
+        {
+            DrawTitleScreen();
+        }
+        else
+        {
+            DrawHud();
+            DrawHoverTooltip();
+            DrawResultBanner();
+        }
         _spriteBatch.End();
 
         base.Draw(gameTime);
@@ -251,7 +317,48 @@ public class Game1 : Game
         DrawVisualEffects();
         DrawText("CODEC_TACTICS", viewport.X + 18, viewport.Y + 16, 20, TextColor);
         DrawText(_game.ObjectiveText, viewport.X + 20, viewport.Y + 44, 13, MutedTextColor, viewport.Width - 42);
+        DrawText(GetLayerFocusLabel(), viewport.X + 20, viewport.Y + 70, 12, MutedTextColor, viewport.Width - 42);
         DrawLatticeReadout(viewport);
+        DrawLayerCubeInset(viewport);
+    }
+
+    private void HandleTitleInput(KeyboardState keyboard, MouseState mouse)
+    {
+        if (WasPressed(keyboard, Keys.Escape))
+        {
+            Exit();
+            return;
+        }
+
+        if (WasPressed(keyboard, Keys.Enter))
+        {
+            ContinueCampaign();
+        }
+        else if (WasPressed(keyboard, Keys.N))
+        {
+            StartFreeTrace();
+        }
+        else if (WasPressed(keyboard, Keys.L))
+        {
+            LoadMission();
+        }
+        else if (WasPressed(keyboard, Keys.F1))
+        {
+            SelectSaveSlot(1);
+        }
+        else if (WasPressed(keyboard, Keys.F2))
+        {
+            SelectSaveSlot(2);
+        }
+        else if (WasPressed(keyboard, Keys.F3))
+        {
+            SelectSaveSlot(3);
+        }
+
+        if (mouse.LeftButton == ButtonState.Pressed && _previousMouse.LeftButton == ButtonState.Released)
+        {
+            HandleClick(mouse.Position);
+        }
     }
 
     private void DrawNetworkBackdrop(XnaRectangle viewport)
@@ -364,6 +471,183 @@ public class Game1 : Game
         DrawText(text, bounds.X + 7, bounds.Y + 5, 12, MutedTextColor);
     }
 
+    private void DrawLayerCubeInset(XnaRectangle viewport)
+    {
+        var layers = GetAvailableLayers();
+        if (layers.Count <= 1)
+        {
+            return;
+        }
+
+        const int width = 238;
+        const int height = 168;
+        var bounds = new XnaRectangle(viewport.X + 18, viewport.Bottom - height - 18, width, height);
+        Fill(bounds, new XnaColor(5, 10, 14, 168));
+        Fill(new XnaRectangle(bounds.X, bounds.Y, 3, bounds.Height), new XnaColor(AccentColor.R, AccentColor.G, AccentColor.B, (byte)116));
+        DrawRectangle(bounds, new XnaColor(48, 75, 78, 112), 1);
+
+        DrawText("LAYER CUBE", bounds.X + 12, bounds.Y + 10, 13, TextColor);
+        DrawText(GetLayerFocusLabel(), bounds.X + 12, bounds.Y + 31, 11, MutedTextColor, bounds.Width - 24);
+
+        var displayLayers = layers.Count <= 7
+            ? layers
+            : layers.Take(3).Concat(layers.Skip(layers.Count - 3)).ToList();
+        var cubeBase = new Vector2(bounds.X + 92f, bounds.Y + 118f);
+        const float sliceWidth = 98f;
+        const float sliceHeight = 42f;
+        const float stepX = 14f;
+        const float stepY = -10f;
+
+        DrawLayerTransitionRails(displayLayers, cubeBase, sliceWidth, sliceHeight, stepX, stepY);
+
+        for (var i = displayLayers.Count - 1; i >= 0; i--)
+        {
+            var layer = displayLayers[i];
+            var center = cubeBase + new Vector2(i * stepX, i * stepY);
+            var summary = GetLayerSummary(layer);
+            var inFocus = _focusedLayer < 0 || _focusedLayer == layer;
+            var baseColor = summary.Objective
+                ? ObjectiveColor
+                : summary.Enemy > summary.Player
+                    ? LossColor
+                    : summary.Player > 0
+                        ? AccentColor
+                        : NeutralColor;
+            var alpha = (byte)(inFocus ? 78 : 28);
+            var outlineAlpha = (byte)(inFocus ? 176 : 68);
+            var fill = new XnaColor(baseColor.R, baseColor.G, baseColor.B, alpha);
+            var outline = new XnaColor(baseColor.R, baseColor.G, baseColor.B, outlineAlpha);
+
+            DrawLayerCubeSlice(center, sliceWidth, sliceHeight, fill, outline, inFocus ? 2 : 1);
+            DrawLayerCubeGlyphs(center, summary, inFocus);
+            DrawText((layer + 1).ToString(), (int)(center.X - sliceWidth * 0.5f - 20f), (int)(center.Y - 7f), 11, inFocus ? TextColor : MutedTextColor);
+        }
+
+        if (layers.Count > displayLayers.Count)
+        {
+            DrawText("...", bounds.X + 77, bounds.Y + 83, 15, MutedTextColor);
+        }
+
+        DrawText(
+            $"Transitions {_game.BoardDefinition.TransitionLinks.Count}",
+            bounds.X + 12,
+            bounds.Bottom - 24,
+            11,
+            MutedTextColor,
+            bounds.Width - 24);
+    }
+
+    private void DrawLayerTransitionRails(IReadOnlyList<int> layers, Vector2 cubeBase, float sliceWidth, float sliceHeight, float stepX, float stepY)
+    {
+        if (layers.Count < 2)
+        {
+            return;
+        }
+
+        for (var i = 0; i < layers.Count - 1; i++)
+        {
+            var current = cubeBase + new Vector2(i * stepX, i * stepY);
+            var next = cubeBase + new Vector2((i + 1) * stepX, (i + 1) * stepY);
+            var active = _focusedLayer < 0 || _focusedLayer == layers[i] || _focusedLayer == layers[i + 1];
+            var color = active
+                ? new XnaColor(AccentColor.R, AccentColor.G, AccentColor.B, (byte)72)
+                : new XnaColor(78, 94, 94, 36);
+
+            DrawLine(current + new Vector2(0f, -sliceHeight * 0.5f), next + new Vector2(0f, -sliceHeight * 0.5f), color, 1);
+            DrawLine(current + new Vector2(sliceWidth * 0.5f, 0f), next + new Vector2(sliceWidth * 0.5f, 0f), color, 1);
+            DrawLine(current + new Vector2(-sliceWidth * 0.5f, 0f), next + new Vector2(-sliceWidth * 0.5f, 0f), color, 1);
+        }
+    }
+
+    private void DrawLayerCubeSlice(Vector2 center, float width, float height, XnaColor fill, XnaColor outline, int thickness)
+    {
+        var points = new[]
+        {
+            center + new Vector2(0f, -height * 0.5f),
+            center + new Vector2(width * 0.5f, 0f),
+            center + new Vector2(0f, height * 0.5f),
+            center + new Vector2(-width * 0.5f, 0f)
+        };
+        FillPolygonApprox(points, fill);
+        DrawPolygonOutline(points, outline, thickness);
+    }
+
+    private void DrawLayerCubeGlyphs(Vector2 center, LayerSummary summary, bool inFocus)
+    {
+        var mutedAlpha = (byte)(inFocus ? 190 : 84);
+        var playerColor = new XnaColor(ValidMoveColor.R, ValidMoveColor.G, ValidMoveColor.B, mutedAlpha);
+        var enemyColor = new XnaColor(LossColor.R, LossColor.G, LossColor.B, mutedAlpha);
+        var neutralColor = new XnaColor(NeutralColor.R, NeutralColor.G, NeutralColor.B, (byte)(inFocus ? 118 : 54));
+
+        if (summary.Player > 0)
+        {
+            DrawCircle(center + new Vector2(-20f, -2f), 4.5f, playerColor);
+        }
+
+        if (summary.Enemy > 0)
+        {
+            DrawDiamond(center + new Vector2(20f, -2f), 5.2f, new XnaColor(enemyColor.R, enemyColor.G, enemyColor.B, (byte)54), enemyColor);
+        }
+
+        if (summary.Neutral > 0)
+        {
+            DrawCircleOutline(center + new Vector2(0f, 8f), 4.5f, neutralColor, 1);
+        }
+
+        if (summary.Objective)
+        {
+            DrawLine(center + new Vector2(-7f, -13f), center + new Vector2(7f, -13f), ObjectiveColor, 2);
+            DrawLine(center + new Vector2(0f, -20f), center + new Vector2(0f, -6f), ObjectiveColor, 2);
+        }
+    }
+
+    private IReadOnlyList<int> GetAvailableLayers()
+    {
+        var layers = _game.BoardDefinition.Nodes
+            .Select(node => _game.BoardDefinition.GetLayer(node))
+            .Distinct()
+            .OrderBy(layer => layer)
+            .ToList();
+
+        return layers.Count == 0 ? new[] { 0 } : layers;
+    }
+
+    private LayerSummary GetLayerSummary(int layer)
+    {
+        var player = 0;
+        var enemy = 0;
+        var neutral = 0;
+        var objective = false;
+
+        foreach (var node in _game.Board.Nodes)
+        {
+            if (_game.BoardDefinition.GetLayer(node.Id) != layer)
+            {
+                continue;
+            }
+
+            if (_game.ObjectiveNode == node.Id)
+            {
+                objective = true;
+            }
+
+            switch (node.Owner)
+            {
+                case NodeOwner.Player:
+                    player++;
+                    break;
+                case NodeOwner.Enemy:
+                    enemy++;
+                    break;
+                default:
+                    neutral++;
+                    break;
+            }
+        }
+
+        return new LayerSummary(player, enemy, neutral, objective);
+    }
+
     private void DrawBoardAtmosphere(XnaRectangle viewport)
     {
         var center = new Vector2(viewport.X + viewport.Width * 0.5f, viewport.Y + viewport.Height * 0.52f);
@@ -395,9 +679,17 @@ public class Game1 : Game
         var flowColor = GetFlowColor(startNode, endNode);
         var connectionScale = (startProjection.Scale + endProjection.Scale) * 0.5f;
         var thickness = Math.Max(1, (int)(active ? 3 * connectionScale : 1 * connectionScale));
+        var inFocus = IsConnectionInLayerFocus(connection);
 
         DrawLine(groundStart, groundEnd, new XnaColor(0, 0, 0, 92), thickness + 8);
         DrawLine(start, end, new XnaColor(1, 3, 5, 220), thickness + 7);
+        if (!inFocus)
+        {
+            var mutedAlpha = active ? 62 : 28;
+            DrawLine(start, end, new XnaColor(52, 70, 72, mutedAlpha), Math.Max(1, thickness));
+            return;
+        }
+
         if (active)
         {
             DrawLine(start, end, new XnaColor(flowColor.R, flowColor.G, flowColor.B, (byte)18), thickness + 10);
@@ -460,6 +752,15 @@ public class Game1 : Game
         var typeColor = GetTypeColor(node, isObjective);
         var pulse = GetPulse(3.1f, node.Id.X * 0.21f + node.Id.Y * 0.13f);
         var visual = GetNodeVisual(node.Id);
+        if (!IsNodeInLayerFocus(node.Id))
+        {
+            DrawNodePylon(ground, center, node, projection.Scale);
+            DrawCircle(center, radius * 0.72f, new XnaColor(33, 44, 47, 92));
+            DrawCircleOutline(center, radius * 0.78f, new XnaColor(95, 119, 116, 66), 1);
+            DrawText(_game.BoardDefinition.GetLayer(node.Id).ToString(), (int)(center.X - 4), (int)(center.Y - 7), 10, new XnaColor(154, 174, 170, 118));
+            return;
+        }
+
         ownerColor = Blend(GetOwnerColor(visual.PreviousOwner), ownerColor, EaseOut(visual.OwnerTransition));
         radius += visual.HoverAmount * 3f + visual.SelectAmount * 3f + visual.SelectFlash * 3f + visual.ImpactFlash * 4f;
         center += GetShakeOffset(visual.Shake, node.Id);
@@ -530,6 +831,11 @@ public class Game1 : Game
         var result = _game.LastActionResult;
         var target = result.CorruptionTarget ?? result.CorruptionFocusTarget;
         if (!result.EnemyActionSource.HasValue || !target.HasValue)
+        {
+            return;
+        }
+
+        if (!IsNodeInLayerFocus(result.EnemyActionSource.Value) && !IsNodeInLayerFocus(target.Value))
         {
             return;
         }
@@ -700,8 +1006,17 @@ public class Game1 : Game
         DrawText($"Turn {_game.TurnNumber}", hud.Right - 84, y + 4, 15, MutedTextColor);
         y += 36;
 
+        var missionLine = GetMissionLine();
+        DrawText(missionLine, x, y, 13, TextColor, hud.Width - TextPadding * 2);
+        y += EstimateWrappedHeight(missionLine, hud.Width - TextPadding * 2, 13) + 8;
         DrawText($"Seed {_activeSeed.Text}", x, y, 13, MutedTextColor, hud.Width - TextPadding * 2);
         y += EstimateWrappedHeight($"Seed {_activeSeed.Text}", hud.Width - TextPadding * 2, 13) + 9;
+        DrawText(_saveSlotLine, x, y, 12, MutedTextColor, hud.Width - TextPadding * 2);
+        y += EstimateWrappedHeight(_saveSlotLine, hud.Width - TextPadding * 2, 12) + 9;
+        DrawText(_profileLine, x, y, 12, MutedTextColor, hud.Width - TextPadding * 2);
+        y += EstimateWrappedHeight(_profileLine, hud.Width - TextPadding * 2, 12) + 9;
+        DrawText(GetLayerFocusLabel(), x, y, 12, MutedTextColor, hud.Width - TextPadding * 2);
+        y += EstimateWrappedHeight(GetLayerFocusLabel(), hud.Width - TextPadding * 2, 12) + 9;
 
         DrawResourceStrip(x, y, hud.Width - TextPadding * 2);
         y += 54;
@@ -723,6 +1038,13 @@ public class Game1 : Game
         y = DrawCommandButton(x, y + 7, "C", "Center", ButtonAction.RecenterView);
         y = DrawCommandButton(x, y + 7, "R", "Replay", ButtonAction.Restart);
         y = DrawCommandButton(x, y + 7, "N", "New Seed", ButtonAction.NewMission);
+        y = DrawCommandButton(x, y + 7, "S", "Save", ButtonAction.SaveMission);
+        y = DrawCommandButton(x, y + 7, "L", "Load", ButtonAction.LoadMission);
+        y = DrawCommandButton(x, y + 7, "F1", "Slot 1", ButtonAction.SelectSlot1);
+        y = DrawCommandButton(x, y + 7, "F2", "Slot 2", ButtonAction.SelectSlot2);
+        y = DrawCommandButton(x, y + 7, "F3", "Slot 3", ButtonAction.SelectSlot3);
+        y = DrawCommandButton(x, y + 7, "[", "Layer -", ButtonAction.PreviousLayer);
+        y = DrawCommandButton(x, y + 7, "]", "Layer +", ButtonAction.NextLayer);
         y += 10;
 
         y = DrawTacticalGuide(x, y, hud.Width - TextPadding * 2);
@@ -880,6 +1202,58 @@ public class Game1 : Game
         DrawCenteredText("R replays seed. N rolls a new network.", bounds.X, bounds.Y + 54, bounds.Width, 18, 14, TextColor);
     }
 
+    private void DrawTitleScreen()
+    {
+        _buttons.Clear();
+        var viewport = GetBoardViewport();
+        Fill(viewport, new XnaColor(0, 0, 0, 126));
+
+        var bounds = new XnaRectangle(viewport.X + viewport.Width / 2 - 330, viewport.Y + 94, 660, 520);
+        Fill(bounds, new XnaColor(7, 12, 16, 236));
+        Fill(new XnaRectangle(bounds.X, bounds.Y, 5, bounds.Height), new XnaColor(AccentColor.R, AccentColor.G, AccentColor.B, (byte)164));
+        DrawRectangle(bounds, new XnaColor(63, 93, 88, 180), 2);
+
+        DrawText("CODEC_TACTICS", bounds.X + 28, bounds.Y + 26, 28, TextColor);
+        DrawText("Operations", bounds.X + 32, bounds.Y + 66, 15, AccentColor);
+
+        var profile = _seedHistoryStore.LoadProfileProgress();
+        DrawText($"Profile L{profile.Level} {profile.Title}", bounds.X + 32, bounds.Y + 104, 18, TextColor);
+        DrawText($"XP {profile.Experience}   Wins {profile.Wins}   Losses {profile.Losses}   Best Stage {profile.BestStage}   Streak {profile.CurrentWinStreak}", bounds.X + 32, bounds.Y + 132, 13, MutedTextColor, bounds.Width - 64);
+
+        var campaignPlan = CreateCampaignPlan();
+        DrawText($"{campaignPlan.ArcTitle}: {campaignPlan.MissionTitle}", bounds.X + 32, bounds.Y + 172, 16, ObjectiveColor, bounds.Width - 64);
+        DrawText($"{campaignPlan.BranchLabel} - {campaignPlan.BranchSummary}", bounds.X + 32, bounds.Y + 198, 12, AccentColor, bounds.Width - 64);
+        DrawText(campaignPlan.Briefing, bounds.X + 32, bounds.Y + 220, 11, MutedTextColor, bounds.Width - 64);
+
+        var y = bounds.Y + 266;
+        y = DrawTitleButton(bounds.X + 32, y, bounds.Width - 64, "Enter", "Continue Campaign", campaignPlan.MissionTitle, ButtonAction.ContinueCampaign);
+        y = DrawTitleButton(bounds.X + 32, y + 10, bounds.Width - 64, "N", "Free Trace", "Launch an unbound generated mission", ButtonAction.StartFreeTrace);
+        y = DrawTitleButton(bounds.X + 32, y + 10, bounds.Width - 64, "L", "Load Slot", _saveSlotLine, ButtonAction.LoadMission);
+
+        DrawText("Slots", bounds.X + 32, y + 22, 13, MutedTextColor);
+        var slotY = y + 48;
+        DrawTitleButton(bounds.X + 32, slotY, 184, "F1", "Slot 1", GetSlotLabel(1), ButtonAction.SelectSlot1);
+        DrawTitleButton(bounds.X + 238, slotY, 184, "F2", "Slot 2", GetSlotLabel(2), ButtonAction.SelectSlot2);
+        DrawTitleButton(bounds.X + 444, slotY, 184, "F3", "Slot 3", GetSlotLabel(3), ButtonAction.SelectSlot3);
+
+        DrawText("Esc exits. In mission, Esc returns here.", bounds.X + 32, bounds.Bottom - 34, 12, MutedTextColor, bounds.Width - 64);
+    }
+
+    private int DrawTitleButton(int x, int y, int width, string shortcut, string label, string detail, ButtonAction action)
+    {
+        var bounds = new XnaRectangle(x, y, width, 48);
+        var selected = (action == ButtonAction.SelectSlot1 && _selectedSaveSlot == 1)
+            || (action == ButtonAction.SelectSlot2 && _selectedSaveSlot == 2)
+            || (action == ButtonAction.SelectSlot3 && _selectedSaveSlot == 3);
+        Fill(bounds, selected ? new XnaColor(28, 48, 48, 218) : new XnaColor(12, 20, 25, 212));
+        DrawRectangle(bounds, selected ? AccentColor : new XnaColor(55, 73, 74, 164), selected ? 2 : 1);
+        DrawText(shortcut, bounds.X + 14, bounds.Y + 8, 12, AccentColor);
+        DrawText(label, bounds.X + 74, bounds.Y + 7, 15, TextColor, bounds.Width - 86);
+        DrawText(detail, bounds.X + 74, bounds.Y + 27, 10, MutedTextColor, bounds.Width - 86);
+        _buttons.Add(new ButtonDefinition(bounds, action, null));
+        return bounds.Bottom;
+    }
+
     private void HandleClick(XnaPoint mousePosition)
     {
         foreach (var button in _buttons)
@@ -893,6 +1267,14 @@ public class Game1 : Game
             {
                 SelectAction(button.PlayerAction.Value);
             }
+            else if (button.Action == ButtonAction.ContinueCampaign)
+            {
+                ContinueCampaign();
+            }
+            else if (button.Action == ButtonAction.StartFreeTrace)
+            {
+                StartFreeTrace();
+            }
             else if (button.Action == ButtonAction.EndTurn)
             {
                 ResolveAction(() => _game.EndPlayerTurnWithResult());
@@ -904,6 +1286,34 @@ public class Game1 : Game
             else if (button.Action == ButtonAction.NewMission)
             {
                 StartNewMission();
+            }
+            else if (button.Action == ButtonAction.SaveMission)
+            {
+                SaveMission();
+            }
+            else if (button.Action == ButtonAction.LoadMission)
+            {
+                LoadMission();
+            }
+            else if (button.Action == ButtonAction.SelectSlot1)
+            {
+                SelectSaveSlot(1);
+            }
+            else if (button.Action == ButtonAction.SelectSlot2)
+            {
+                SelectSaveSlot(2);
+            }
+            else if (button.Action == ButtonAction.SelectSlot3)
+            {
+                SelectSaveSlot(3);
+            }
+            else if (button.Action == ButtonAction.PreviousLayer)
+            {
+                CycleLayerFocus(-1);
+            }
+            else if (button.Action == ButtonAction.NextLayer)
+            {
+                CycleLayerFocus(1);
             }
             else if (button.Action == ButtonAction.FlipBoard)
             {
@@ -917,9 +1327,23 @@ public class Game1 : Game
             return;
         }
 
+        if (_appScreen == AppScreen.Title)
+        {
+            return;
+        }
+
         var node = GetNodeAt(mousePosition);
         if (node is null)
         {
+            return;
+        }
+
+        if (!IsNodeInLayerFocus(node.Id))
+        {
+            _invalidReason = $"{node.Id} is outside current layer focus.";
+            _status = _invalidReason;
+            Log(_status);
+            _audio.Play(AudioCue.Invalid, 0.58f);
             return;
         }
 
@@ -1105,59 +1529,212 @@ public class Game1 : Game
 
     private void RestartMission()
     {
-        StartMission(_activeSeed, "Mission replayed.");
+        StartMission(_missionPlan, "Mission replayed.");
+    }
+
+    private void ContinueCampaign()
+    {
+        StartMission(CreateCampaignPlan(), "Campaign trace loaded.");
+    }
+
+    private void StartFreeTrace()
+    {
+        StartMission(CreateFreeTracePlan(), "Free trace loaded.");
     }
 
     private void StartNewMission()
     {
-        StartMission(ProceduralSeed.CreateRandom(), "New procedural trace loaded.");
+        var plan = _game.Result == GameResult.InProgress
+            ? CreateFreeTracePlan()
+            : CreateCampaignPlan();
+        var status = _game.Result == GameResult.InProgress
+            ? "New procedural trace loaded."
+            : "Next campaign trace loaded.";
+        StartMission(plan, status);
     }
 
-    private void StartMission(ProceduralSeed seed, string status)
+    private void SaveMission()
     {
-        _activeSeed = seed;
-        _game = CreateMissionGame(seed);
+        _seedHistoryStore.SaveActiveGame(_selectedSaveSlot, _missionPlan, _game);
+        RefreshSaveSlotLine();
+        _status = $"Saved trace {_activeSeed.Text} to slot {_selectedSaveSlot} on turn {_game.TurnNumber}.";
+        _invalidReason = string.Empty;
+        Log(_status);
+        _audio.Play(AudioCue.Confirm, 0.52f);
+    }
+
+    private void LoadMission()
+    {
+        if (!_seedHistoryStore.TryLoadActiveGame(_selectedSaveSlot, out var plan, out var snapshot))
+        {
+            _status = $"No saved trace in slot {_selectedSaveSlot}.";
+            _invalidReason = _status;
+            Log(_status);
+            _audio.Play(AudioCue.Invalid, 0.58f);
+            return;
+        }
+
+        _missionPlan = plan;
+        _activeSeed = plan.Seed;
+        _game = NetworkGame.RestoreSnapshot(snapshot);
+        _appScreen = AppScreen.Playing;
+        NormalizeLayerFocus();
+        RefreshSaveSlotLine();
+        RefreshProfileLine();
         _selectedAction = PlayerActionMode.Claim;
         _invalidReason = string.Empty;
-        _status = $"{status} Seed {_activeSeed.Text}.";
+        _status = $"Loaded slot {_selectedSaveSlot}: trace {_activeSeed.Text} on turn {_game.TurnNumber}.";
         _selectedNodeId = null;
         _actionLog.Clear();
         RecenterCamera(immediate: false);
-        Log($"Seed {_activeSeed.Text} ready.");
+        Log(_status);
         _nodeVisuals.Clear();
         _visualEffects.Clear();
         _audio.Play(AudioCue.Reset, 0.6f);
     }
 
-    private static NetworkGame CreateMissionGame(ProceduralSeed seed)
+    private void SelectSaveSlot(int slot)
     {
-        var mission = ProceduralMissionGenerator.Generate(seed);
-        var configuration = new GameConfiguration
-        {
-            EnemyPersonality = SelectPersonality(seed),
-            EnemyDifficulty = EnemyDifficulty.Hard
-        };
-
-        return NetworkGame.CreateMission(mission, configuration);
+        _selectedSaveSlot = Math.Clamp(slot, 1, SeedHistoryStore.SlotCount);
+        _seedHistoryStore.SelectSlot(_selectedSaveSlot);
+        RefreshSaveSlotLine();
+        _status = $"Save slot {_selectedSaveSlot} selected.";
+        _invalidReason = string.Empty;
+        Log(_status);
+        _audio.Play(AudioCue.Select, 0.38f);
     }
 
-    private static EnemyPersonality SelectPersonality(ProceduralSeed seed)
+    private void RefreshSaveSlotLine()
     {
-        var personalities = new[]
+        var summaries = _seedHistoryStore.LoadSlotSummaries();
+        var parts = summaries.Select(summary =>
         {
-            EnemyPersonality.Aggressive,
-            EnemyPersonality.Defensive,
-            EnemyPersonality.Economic,
-            EnemyPersonality.Opportunistic,
-            EnemyPersonality.CorruptionFocused
-        };
-        var hash = 17;
-        foreach (var character in seed.Text)
+            var prefix = summary.Slot == _selectedSaveSlot ? ">" : "";
+            var body = summary.HasSave ? $"{summary.Slot}:{summary.SeedText}/T{summary.TurnNumber}" : $"{summary.Slot}:Empty";
+            return prefix + body;
+        });
+        _saveSlotLine = "Slots " + string.Join("  ", parts);
+    }
+
+    private void RefreshProfileLine()
+    {
+        var profile = _seedHistoryStore.LoadProfileProgress();
+        _profileLine = $"Profile L{profile.Level} {profile.Title}  XP {profile.Experience}  W/L {profile.Wins}/{profile.Losses}  Best {profile.BestStage}";
+    }
+
+    private string GetSlotLabel(int slot)
+    {
+        var summary = _seedHistoryStore.LoadSlotSummaries().First(slotSummary => slotSummary.Slot == slot);
+        return summary.HasSave
+            ? $"{summary.SeedText}/T{summary.TurnNumber} {summary.Result}"
+            : "Empty";
+    }
+
+    private string GetMissionLine()
+    {
+        if (string.IsNullOrWhiteSpace(_missionPlan.ArcTitle) || string.IsNullOrWhiteSpace(_missionPlan.MissionTitle))
         {
-            hash = hash * 31 + character;
+            return _missionPlan.Stage <= 0 ? "Free Trace" : $"Campaign Stage {_missionPlan.Stage}";
         }
 
-        return personalities[Math.Abs(hash) % personalities.Length];
+        return $"{_missionPlan.ArcTitle}: {_missionPlan.MissionTitle}";
+    }
+
+    private void CycleLayerFocus(int direction)
+    {
+        var layerCount = Math.Max(1, _game.BoardDefinition.LayerCount);
+        var next = _focusedLayer + direction;
+        if (direction > 0 && next >= layerCount)
+        {
+            next = -1;
+        }
+        else if (direction < 0 && next < -1)
+        {
+            next = layerCount - 1;
+        }
+
+        _focusedLayer = next;
+        _status = GetLayerFocusLabel();
+        _invalidReason = string.Empty;
+        Log(_status);
+        _audio.Play(AudioCue.Select, 0.36f);
+    }
+
+    private void NormalizeLayerFocus()
+    {
+        if (_focusedLayer >= _game.BoardDefinition.LayerCount)
+        {
+            _focusedLayer = -1;
+        }
+    }
+
+    private string GetLayerFocusLabel()
+    {
+        return _focusedLayer < 0
+            ? $"Layer focus: All ({_game.BoardDefinition.LayerCount})"
+            : $"Layer focus: {_focusedLayer + 1}/{_game.BoardDefinition.LayerCount}  transitions {_game.BoardDefinition.TransitionLinks.Count}";
+    }
+
+    private bool IsNodeInLayerFocus(NodeId nodeId)
+    {
+        return _focusedLayer < 0 || _game.BoardDefinition.GetLayer(nodeId) == _focusedLayer;
+    }
+
+    private bool IsConnectionInLayerFocus(ConnectionState connection)
+    {
+        return _focusedLayer < 0 || IsNodeInLayerFocus(connection.First) || IsNodeInLayerFocus(connection.Second);
+    }
+
+    private void StartMission(CampaignMissionPlan plan, string status)
+    {
+        _missionPlan = plan;
+        _activeSeed = plan.Seed;
+        _game = CreateMissionGame(plan);
+        _appScreen = AppScreen.Playing;
+        NormalizeLayerFocus();
+        _selectedAction = PlayerActionMode.Claim;
+        _invalidReason = string.Empty;
+        _status = $"{status} {_missionPlan.Briefing}";
+        _selectedNodeId = null;
+        _actionLog.Clear();
+        RecenterCamera(immediate: false);
+        Log($"{_missionPlan.Briefing} ready.");
+        _nodeVisuals.Clear();
+        _visualEffects.Clear();
+        _seedHistoryStore.RecordStarted(_activeSeed);
+        _audio.Play(AudioCue.Reset, 0.6f);
+    }
+
+    private CampaignMissionPlan CreateCampaignPlan()
+    {
+        return CampaignProgressionPlanner.CreatePlan(_seedHistoryStore.LoadCampaignRecords());
+    }
+
+    private static CampaignMissionPlan CreateFreeTracePlan()
+    {
+        var seed = ProceduralSeed.CreateRandom();
+        var configuration = new GameConfiguration
+        {
+            EnemyPersonality = CampaignProgressionPlanner.SelectPersonality(seed),
+            EnemyDifficulty = EnemyDifficulty.Hard
+        };
+        return new CampaignMissionPlan(
+            0,
+            seed,
+            ProceduralMissionSettings.Default,
+            configuration,
+            $"Free trace seed {seed.Text}.",
+            "free-trace",
+            "Free Trace",
+            "Unbound Signal",
+            "Free Trace",
+            "Unbound generated route outside campaign history.");
+    }
+
+    private static NetworkGame CreateMissionGame(CampaignMissionPlan plan)
+    {
+        var mission = ProceduralMissionGenerator.Generate(plan.Seed, plan.MissionSettings);
+        return NetworkGame.CreateMission(mission, plan.Configuration);
     }
 
     private void ResolveAction(Func<GameActionResult> action, NodeId? actedNode = null)
@@ -1172,6 +1749,18 @@ public class Game1 : Game
         _invalidReason = result.Succeeded ? string.Empty : result.Message;
         Log(FormatLogMessage(result));
         ApplyPresentationFeedback(result, beforeOwners, actedNode);
+        RecordCompletedMission(result);
+    }
+
+    private void RecordCompletedMission(GameActionResult result)
+    {
+        if (!result.Succeeded || result.Result == GameResult.InProgress)
+        {
+            return;
+        }
+
+        _seedHistoryStore.RecordCompleted(_activeSeed, result.Result, _game.TurnNumber, _game.Configuration.EnemyPersonality, Math.Max(1, _missionPlan.Stage));
+        RefreshProfileLine();
     }
 
     private void ApplyPresentationFeedback(GameActionResult result, IReadOnlyDictionary<NodeId, NodeOwner> beforeOwners, NodeId? actedNode)
@@ -1857,7 +2446,7 @@ public class Game1 : Game
         }
 
         var forecastPressure = _game.CorruptionPressure + _game.Configuration.CorruptionPressureGrowthPerTurn;
-        var decision = TacticalEnemyPlanner.SelectDecision(_game.Board, _game.Configuration, _game.PlayerCore, _game.ObjectiveNode, forecastPressure, _game.TurnNumber);
+        var decision = TacticalEnemyPlanner.SelectDecision(_game.BoardDefinition, _game.Board, _game.Configuration, _game.PlayerCore, _game.ObjectiveNode, forecastPressure, _game.TurnNumber);
         if (decision.Target.HasValue)
         {
             var verb = decision.ActionType == TacticalEnemyActionType.CorruptNode ? "Capture" : "Pressure";
@@ -2399,6 +2988,8 @@ public class Game1 : Game
 
     private readonly record struct ActionPreview(bool IsValid, string Reason, string Cost, string SuccessText, int EnergyCost);
 
+    private readonly record struct LayerSummary(int Player, int Enemy, int Neutral, bool Objective);
+
     private readonly record struct ProjectedNode(Vector2 Screen, float Depth, float Scale);
 
     private readonly record struct ProjectedBounds(float Left, float Top, float Right, float Bottom);
@@ -2436,13 +3027,28 @@ public class Game1 : Game
         Burst
     }
 
+    private enum AppScreen
+    {
+        Title,
+        Playing
+    }
+
     private enum ButtonAction
     {
         SelectAction,
+        ContinueCampaign,
+        StartFreeTrace,
         EndTurn,
         FlipBoard,
         RecenterView,
         Restart,
-        NewMission
+        NewMission,
+        SaveMission,
+        LoadMission,
+        SelectSlot1,
+        SelectSlot2,
+        SelectSlot3,
+        PreviousLayer,
+        NextLayer
     }
 }

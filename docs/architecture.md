@@ -51,9 +51,11 @@ Expected responsibilities:
 
 ## Cube Model
 
-The cube model is a future visualization and spatial organization goal. It may map layers onto cube faces, cube slices, or a navigable 3D network volume.
+The cube model is a future spatial organization goal. It may map layers onto cube faces, cube slices, or a navigable 3D network volume.
 
 The cube should not own game rules directly. It should present and navigate the rule state produced by the core model.
+
+The active MonoGame frontend now has a small code-drawn layer cube readout. That readout is presentation-only: it summarizes layer slices, transition rails, ownership pressure, and objective location from `BoardDefinition.NodeLayers`, `TransitionLinks`, and current board ownership. It is not a cube-face rules model.
 
 ## Turn System
 
@@ -89,7 +91,7 @@ Difficulty changes decision quality by selecting from evaluated candidates. It d
 - Start with readable 2D prototype scenes.
 - Separate core state from frontend rendering.
 - Add clear node selection and path feedback.
-- Explore cube-based navigation after rules are testable.
+- Expand from the current layer cube readout into cube-face navigation only after the face model and rules are testable.
 - Keep debug overlays available for topology, layer, and corruption state.
 
 ## Frontend Workflow
@@ -100,8 +102,16 @@ Milestone 5 keeps animation, visual effects, camera feel, and audio in the MonoG
 
 The Milestone 7 production presentation pass extends the same separation. `Game1` owns layered digital environment rendering, active connection glow and packet trails, node lighting, corruption distortion, relay pulses, trace-panel styling, and inertial camera motion. `AudioService` remains the audio boundary and can modulate the existing synthesized ambient hum from presentation-readable state such as corruption pressure or objective progress. None of these systems create gameplay facts or change core rule evaluation.
 
-Milestone 8 keeps the same boundary while giving the presentation a documented visual identity. `docs/visual-style-guide.md` defines the fiber-lattice metaphor, color language, shape language, network rendering rules, animation principles, lighting principles, effects philosophy, HUD philosophy, and audio direction. `Game1` implements that language through bundled fiber routes, diamond signal packets, shape-first node silhouettes, corruption fracture marks, and a lattice diagnostics rail. These remain presentation facts only; core rules, mission generation, tactical AI, balance, layers, cube visualization, and save/load behavior are unchanged.
+Milestone 8 keeps the same boundary while giving the presentation a documented visual identity. `docs/visual-style-guide.md` defines the fiber-lattice metaphor, color language, shape language, network rendering rules, animation principles, lighting principles, effects philosophy, HUD philosophy, and audio direction. `Game1` implements that language through bundled fiber routes, diamond signal packets, shape-first node silhouettes, corruption fracture marks, a layer cube inset, and a lattice diagnostics rail. Those presentation facts do not own core rules, mission generation, tactical AI, balance, layer tuning, cube-face gameplay, or profile persistence behavior.
+
+The local save boundary uses `NetworkGame.CreateSnapshot()` and `NetworkGame.RestoreSnapshot()` in the core. The MonoGame frontend stores active trace snapshots beside seed history in three local slots. `ProfileProgression` derives local profile level, XP, title, win/loss totals, best stage, and streak from completed campaign records. Cloud sync, account login, and authored campaign persistence remain outside the current scope.
+
+Campaign arc structure is core data, not presentation-only text. `CampaignArcCatalog` defines the active `Signal Recovery` arc, and `CampaignProgressionPlanner` attaches arc id, arc title, mission title, normal or recovery briefing, branch route label, and branch route summary to each generated campaign plan. The generated mission remains the gameplay source of truth; the arc layer gives campaign context and advance/recovery presentation without scripted objectives or cinematic story state.
+
+Layer focus and the layer cube inset are presentation-only, while layer tuning is core configuration. `BoardDefinition.NodeLayers` and `TransitionLinks` describe topology, `GameConfiguration.LayerModifiers` can adjust integrity, threat, and corruption resistance by layer, and `Game1` can dim out-of-focus nodes and links and draw a compact cube-inspired layer readout. Core action validation, enemy planning, integrity, threat, and objective progress continue to evaluate the full graph.
 
 The previous frontend scene and project files are legacy artifacts. They should not be used for validation or new active frontend work unless a future task explicitly reopens that path.
 
 The MonoGame frontend reads AI intent from `GameActionResult` and `NetworkGame.LastEnemyDecision`. It can highlight source-to-target pressure, target emphasis, profile, difficulty, and concise turn summaries without owning AI rules.
+
+The frontend app flow now has an Operations screen before mission play. It is still a MonoGame presentation concern, but it is backed by real local state: profile progression, campaign plan preview, branch route context, save slots, free-trace launch, and slot loading. It does not introduce account login, cloud sync, or scripted campaign scenes.

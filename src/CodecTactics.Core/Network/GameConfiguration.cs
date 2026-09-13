@@ -59,4 +59,13 @@ public sealed record GameConfiguration
     public int LowIntegrityTargetPriorityAnchor { get; init; } = NetworkRules.LowIntegrityTargetPriorityAnchor;
 
     public int FirewallTargetPriorityPenalty { get; init; } = NetworkRules.FirewallTargetPriorityPenalty;
+
+    public IReadOnlyDictionary<int, LayerRuleModifier> LayerModifiers { get; init; } = new Dictionary<int, LayerRuleModifier>();
+
+    public LayerRuleModifier GetLayerModifier(int layer)
+    {
+        return LayerModifiers.TryGetValue(layer, out var modifier)
+            ? modifier
+            : new LayerRuleModifier();
+    }
 }

@@ -14,6 +14,8 @@ Current fields:
 - `Nodes`: deterministic node layout in row-major order.
 - `Links`: explicit graph links between nodes.
 - `Layout`: optional visual positions for renderers.
+- `NodeLayers`: explicit layer assignment for each node.
+- `TransitionLinks`: links whose endpoints belong to different layers.
 - `NodeTypes`: authored node type placement for Standard, Resource, Relay, and Firewall nodes.
 - `InitialOwnership`: initial Neutral, Player, or Enemy ownership assignments.
 - `PlayerStart`: the player core used by integrity distance checks.
@@ -63,19 +65,21 @@ Milestone 6 adds procedural topology without changing combat, corruption, energy
 - `seedText`
 - `nodeCount`
 - `edgeCount`
+- `layerCount`
+- `transitionCount`
 - `scenario=procedural-network`
 - `topology=layered-infrastructure-graph`
 
 Renderers should use `BoardDefinition.Layout` when present. Gameplay systems should use `BoardDefinition.Links` and must not infer rules from visual positions.
 
-## Future Layers
+## Layers
 
-`BoardDefinition.Metadata` is the placeholder for future layer labels and scenario tags. Milestone 3.25 does not add layers, but it gives future layer work a place to attach metadata without changing gameplay rules.
+`BoardDefinition.NodeLayers` assigns every node to a deterministic integer layer. Grid boards default to layer `0`. Procedural missions assign layer indices from their generated depth structure, so the player start is layer `0`, the objective sits on the deepest generated layer, and transition links identify routes between layer depths.
 
-Before layers are implemented, the core still needs a topology model that can describe cross-layer links and define how distance, Relay reach, and corruption pressure move between layers.
+Layer assignments are topology facts first. Distance, Relay reach, corruption pressure, and objective logic still use explicit active graph links. `GameConfiguration.LayerModifiers` can add opt-in per-layer integrity, threat, and corruption resistance modifiers, which lets generated campaign stages tune deeper layers without changing topology or adding traversal actions. The MonoGame frontend can focus one layer at a time and draw a cube-inspired layer inset from the same topology data.
 
 ## Future Cube Faces
 
-Cube faces will need a node identity or topology layer beyond plain `(X,Y)` grid coordinates. Milestone 3.25 does not add cube rendering or cube adjacency, but it separates scenario definition from game flow so a future cube-face board can be introduced as data before presentation changes.
+Cube faces will need a face model beyond layer indices. The engine now has explicit layer topology and transition links, and the MonoGame frontend has a presentation-only layer cube inset. The core does not yet add cube adjacency, cube-face ordering, or cube-face gameplay rules.
 
 Before cube faces are implemented, the engine still needs explicit face IDs, stable multi-face ordering, and tests for cross-face adjacency.

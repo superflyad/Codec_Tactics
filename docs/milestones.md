@@ -108,6 +108,8 @@ Exit criteria:
 - Player can transition between layers.
 - Deeper layers increase complexity.
 
+Status: implemented as explicit core layer assignments, transition links, opt-in layer rule modifiers, MonoGame layer focus navigation, and a layer cube inset. Full cube-face gameplay remains future scope.
+
 ## Milestone 4: Visual Identity
 
 Replace the grid-first MonoGame presentation with a network-first visual identity for the active vertical-slice mission.
@@ -121,7 +123,7 @@ Exit criteria:
 - The HUD remains concise so the board is the primary visual focus.
 - Core gameplay rules, layers, cube visualization, balance, and retired frontend scope remain unchanged.
 
-## Future Visualization: Cube
+## Visualization Track: Layer Cube
 
 Prototype cube-inspired visualization after the flat network rules and mission feel are stable.
 
@@ -130,6 +132,8 @@ Exit criteria:
 - Core game state can be displayed through cube-based views.
 - 2D and cube visualization share the same underlying model.
 - Selection and feedback remain readable.
+
+Status: partially implemented as a presentation-only layer cube inset in the active MonoGame frontend. Full cube-face navigation, cube adjacency, and cube-face gameplay rules remain future scope.
 
 ## Milestone 5: Interaction, Animation, and Audio
 
@@ -174,13 +178,13 @@ Exit criteria:
 
 Current limitations:
 
-- Personalities are first-pass balance values.
+- Personalities have deterministic legality and differentiation coverage across a seed corpus, but still need human playtesting for feel and difficulty.
 - Enemy actions still use the existing corruption pressure, spread, focus, and collapse rules.
 - AI has no hidden information model yet because the current game state is fully visible.
 
 ## Milestone 7: Production Presentation Pass
 
-Elevate the active MonoGame vertical slice from polished prototype to production-quality presentation while preserving gameplay mechanics, balance, mission generation, tactical AI, layers, cube visualization, and save/load scope.
+Elevate the active MonoGame vertical slice from polished prototype to production-quality presentation while preserving gameplay mechanics, balance, mission generation, tactical AI, layers, cube-face gameplay, and save/load scope.
 
 Exit criteria:
 
@@ -190,7 +194,7 @@ Exit criteria:
 - Camera pan, zoom, and recenter behavior use smoothed inertial movement.
 - The HUD is visually integrated as compact trace instrumentation and keeps the board dominant.
 - Synthesized audio remains centralized in `AudioService`, uses committed assets, and supports pressure-reactive ambient sound.
-- Core gameplay rules, balance values, tactical AI behavior, mission generation, layers, cube visualization, and retired frontend scope remain unchanged.
+- Core gameplay rules, balance values, tactical AI behavior, mission generation, layer rules, cube-face gameplay, and retired frontend scope remain unchanged.
 
 Status: implemented as the production presentation pass for the MonoGame vertical slice.
 
@@ -207,6 +211,107 @@ Exit criteria:
 - Background motion provides depth without fighting gameplay readability.
 - HUD elements feel attached to the lattice as diagnostics rather than separate floating software panels.
 - Animation, lighting, effects, and audio direction reinforce the chosen visual metaphor.
-- Core gameplay rules, balance values, tactical AI behavior, mission generation, layers, cube visualization, save/load, and retired frontend scope remain unchanged.
+- Core gameplay rules, balance values, tactical AI behavior, mission generation, layer rules, cube-face gameplay, save/load, and retired frontend scope remain unchanged.
 
 Status: implemented as the fiber-lattice identity pass for the MonoGame vertical slice.
+
+## Lightweight Campaign Progression and Seed History
+
+Connect generated missions into a minimal persisted sequence without adding new player mechanics.
+
+Exit criteria:
+
+- Completed seed runs are persisted locally by the active MonoGame frontend.
+- The next campaign trace is deterministic from completed run history.
+- Wins advance to larger and harder generated stages.
+- Losses create a recovery trace at the current stage.
+- Replay still restarts the active seed, and New Seed still rolls a free trace before a mission has ended.
+- Core gameplay rules, tactical AI scoring, balance formulas, cube-face gameplay, and cloud sync remain unchanged.
+
+Status: implemented as a lightweight progression layer over procedural mission generation.
+
+## Authored Campaign Arc Scaffold
+
+Give the generated campaign a named arc and authored mission beats without replacing procedural mission generation.
+
+Exit criteria:
+
+- The core has an authored campaign arc catalog with named mission stages.
+- Campaign plans carry arc id, arc title, mission title, mission briefing, branch route label, and branch route summary.
+- Recovery attempts can use authored recovery briefing text.
+- The MonoGame HUD shows the current arc and mission title, and Operations shows the next route branch context.
+- Core tests verify initial, advance, late-stage, and recovery arc metadata.
+- Cinematic story scenes, bespoke scripted mission objectives, cloud sync, and account login remain future scope.
+
+Status: implemented as the `Signal Recovery` arc over deterministic generated campaign traces with Operations route-branch presentation.
+
+## Layer Rule Tuning
+
+Give layers limited rule weight without adding new player actions or cube-face traversal.
+
+Exit criteria:
+
+- `GameConfiguration` can define per-layer integrity, threat, and corruption resistance modifiers.
+- Risk evaluation applies layer modifiers deterministically.
+- Corruption resistance and tactical AI scoring account for layer modifiers.
+- Campaign-generated traces opt into modest layer tuning.
+- Default configuration preserves existing flat-board behavior.
+
+Status: implemented as opt-in `LayerRuleModifier` configuration plus campaign layer tuning.
+
+## Local Save Slots
+
+Add a deterministic save boundary for active generated missions and expose local slots in the MonoGame frontend.
+
+Exit criteria:
+
+- Core can snapshot and restore active mission state.
+- Snapshot restore preserves turn, energy, corruption pressure, objective hold progress, node state, connection strength, and deterministic continuation.
+- The active MonoGame frontend can save and load the active trace locally.
+- The active MonoGame frontend exposes three local save slots and migrates the older single active save into slot 1.
+- The implementation remains local only; cloud sync, account login, and authored campaign persistence are future scope.
+
+Status: implemented as a core snapshot boundary plus MonoGame local save slots.
+
+## Local Profile Progression
+
+Derive player-facing profile progression from completed campaign records without adding cloud sync or account login.
+
+Exit criteria:
+
+- Completed campaign records produce deterministic level, XP, title, win/loss, best-stage, and streak progress.
+- Profile progression is implemented in core and covered by tests.
+- The MonoGame frontend persists a cached profile summary beside seed history.
+- The HUD shows the current local profile line.
+- Cloud sync and account identity remain future scope.
+
+Status: implemented as `ProfileProgression` plus local MonoGame profile persistence.
+
+## Operations UI Flow
+
+Add a production-style front door that connects profile, campaign, save slots, and free-trace play.
+
+Exit criteria:
+
+- The MonoGame app opens on an Operations screen.
+- Operations shows local profile progress, next campaign trace, route branch context, and save slot state.
+- The player can continue campaign, start a free trace, load the selected slot, or select save slots from the screen.
+- In-mission `Esc` returns to Operations, and Operations `Esc` exits.
+- The flow uses existing campaign/save/profile state rather than static placeholder copy.
+
+Status: implemented as a MonoGame Operations screen over the existing mission systems.
+
+## Scenario Catalog and Balance Screening
+
+Add deterministic scenario coverage for alternate board definitions, generated mission settings, and tactical AI personalities.
+
+Exit criteria:
+
+- Curated alternate scenarios exist as reusable mission definitions.
+- Curated scenarios pass a deterministic balance screening route.
+- Generated seed corpus passes early expansion and objective-distance screening.
+- Personality/pressure matrix screening catches early forced-loss regressions across generated seeds and enemy profiles.
+- Tactical AI profiles choose legal actions across a multi-seed corpus.
+- Documentation clearly describes this as regression screening, not final human balance validation.
+
+Status: implemented as `ScenarioCatalog`, `BalanceScreening`, deterministic balance matrix tests, and AI corpus tests.

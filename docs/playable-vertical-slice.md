@@ -2,7 +2,7 @@
 
 The current vertical slice is one complete authored mission named `Secure the Uplink`. It is intentionally small and uses only existing 2D network rules: claiming, reinforcing, weakening corruption, energy, corruption pressure, instability, collapse, and deterministic expansion.
 
-All mission rules live in `CodecTactics.Core`. The active MonoGame frontend displays state through a deterministic network topology, lets the player choose an action mode, sends clicks to core, and renders the returned feedback. The previous legacy frontend implementation is legacy-only.
+All mission rules live in `CodecTactics.Core`. The active MonoGame frontend displays state through deterministic network topology positions, lets the player choose an action mode, sends clicks to core, and renders the returned feedback. The previous legacy frontend implementation is retired and no longer part of the active repository.
 
 ## Mission Definition
 
@@ -65,7 +65,7 @@ The prototype reports:
 - Collapse events.
 - Clear win/loss result.
 
-Unstable player-owned nodes render with a pulsing orange danger ring. The objective renders with a pulsing yellow objective ring. Valid targets use a green outline, invalid targets are dimmed for the selected action, and the board legend decodes concise owner and node-type badges.
+Unstable player-owned nodes render with a pulsing orange danger ring. The objective renders with a pulsing yellow objective ring. Valid targets use a green outline, invalid targets are dimmed for the selected action, and the board legend decodes concise owner and node-type badges. Generated layered missions also render a compact layer cube inset that shows layer slices, cross-layer transitions, ownership pressure, and objective location.
 
 Milestone 4 changes the active presentation from grid-first to network-first without changing mission rules. Nodes render at authored visual topology positions instead of square-cell centers. Connections are first-class animated links with ownership and corruption coloration. Core, Resource, Relay, Firewall, Objective, Standard, and Corrupted nodes use distinct silhouettes, iconography, glow, outline, and overlays before text. The camera supports smooth zoom, right or middle mouse panning, and `C` recentering so the board remains the visual focus.
 
@@ -86,7 +86,8 @@ Core tests cover:
 
 ## Limitations
 
-- The mission is one authored 5x5 board, not a campaign or procedural generator.
-- Balance values are prototype-level and tuned only for this route.
-- Visuals are still code-drawn prototype art, not final production assets.
-- There are no layers, cubes, save/load, advanced AI, final art, or production UI.
+- The authored 5x5 mission remains useful as a regression slice, while the active MonoGame loop now launches deterministic generated missions.
+- Procedural generation and lightweight campaign progression use explicit layered graph topology plus the authored `Signal Recovery` arc scaffold, with opening, advance, and recovery route context shown in Operations, but not cinematic story scenes or bespoke scripted mission chains.
+- The code-drawn fiber-lattice presentation is the active visual direction.
+- Balance values now have deterministic curated-scenario, generated-seed, and personality/pressure matrix screening, but still need human playtesting for feel and final tuning.
+- There is no cloud sync or full cube-face gameplay yet.

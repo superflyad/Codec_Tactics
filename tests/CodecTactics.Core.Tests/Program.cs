@@ -12,7 +12,10 @@ var tests = new (string Name, Action Test)[]
     ("board definition supports rectangular boards", BoardDefinitionSupportsRectangularBoards),
     ("game supports alternate spawn positions", GameSupportsAlternateSpawnPositions),
     ("custom board definition loads node types and ownership", CustomBoardDefinitionLoadsNodeTypesAndOwnership),
+    ("board definition supports explicit layers and transitions", BoardDefinitionSupportsExplicitLayersAndTransitions),
     ("game configuration defaults preserve network rules", GameConfigurationDefaultsPreserveNetworkRules),
+    ("layer rule modifiers affect integrity and threat", LayerRuleModifiersAffectIntegrityAndThreat),
+    ("layer rule modifiers affect corruption resistance", LayerRuleModifiersAffectCorruptionResistance),
     ("custom board initialization is deterministic", CustomBoardInitializationIsDeterministic),
     ("player can claim adjacent neutral node", PlayerCanClaimAdjacentNeutralNode),
     ("player cannot claim non-adjacent neutral node", PlayerCannotClaimNonAdjacentNeutralNode),
@@ -45,12 +48,23 @@ var tests = new (string Name, Action Test)[]
     ("action mode routes claim reinforce and weaken", ActionModeRoutesClaimReinforceAndWeaken),
     ("vertical slice restart is deterministic", VerticalSliceRestartIsDeterministic),
     ("invalid actions after game over do not mutate mission", InvalidActionsAfterGameOverDoNotMutateMission),
+    ("game snapshot restores active mission continuation", GameSnapshotRestoresActiveMissionContinuation),
     ("procedural mission generation is deterministic", ProceduralMissionGenerationIsDeterministic),
     ("procedural mission seeds create different layouts", ProceduralMissionSeedsCreateDifferentLayouts),
     ("procedural mission keeps generated nodes reachable", ProceduralMissionKeepsGeneratedNodesReachable),
     ("procedural mission satisfies graph validity", ProceduralMissionSatisfiesGraphValidity),
     ("procedural mission placement follows gameplay constraints", ProceduralMissionPlacementFollowsGameplayConstraints),
+    ("procedural missions expose layer metadata", ProceduralMissionsExposeLayerMetadata),
     ("procedural layout is readable and complete", ProceduralLayoutIsReadableAndComplete),
+    ("scenario catalog provides balanced regression scenarios", ScenarioCatalogProvidesBalancedRegressionScenarios),
+    ("generated mission corpus passes balance screening", GeneratedMissionCorpusPassesBalanceScreening),
+    ("balance screening covers personality pressure matrix", BalanceScreeningCoversPersonalityPressureMatrix),
+    ("tactical AI profiles stay legal across seed corpus", TacticalAiProfilesStayLegalAcrossSeedCorpus),
+    ("campaign progression starts from a deterministic opening trace", CampaignProgressionStartsFromDeterministicOpeningTrace),
+    ("campaign progression advances after wins", CampaignProgressionAdvancesAfterWins),
+    ("campaign progression recovery softens after a loss", CampaignProgressionRecoverySoftensAfterLoss),
+    ("campaign progression uses authored arc missions", CampaignProgressionUsesAuthoredArcMissions),
+    ("profile progression summarizes completed missions", ProfileProgressionSummarizesCompletedMissions),
     ("tactical AI is deterministic for identical seeded missions", TacticalAiIsDeterministicForIdenticalSeededMissions),
     ("tactical AI selects valid reachable actions", TacticalAiSelectsValidReachableActions),
     ("tactical AI prioritizes objective pressure", TacticalAiPrioritizesObjectivePressure),
@@ -191,6 +205,39 @@ static void CustomBoardDefinitionLoadsNodeTypesAndOwnership()
     AssertEqual("future-ready", definition.Metadata["layer"]);
 }
 
+static void BoardDefinitionSupportsExplicitLayersAndTransitions()
+{
+    var nodes = new[] { new NodeId(0, 0), new NodeId(0, 1), new NodeId(1, 0), new NodeId(1, 1) };
+    var links = new[]
+    {
+        new NetworkLink(new NodeId(0, 0), new NodeId(0, 1)),
+        new NetworkLink(new NodeId(0, 1), new NodeId(1, 0)),
+        new NetworkLink(new NodeId(1, 0), new NodeId(1, 1))
+    };
+    var layers = new Dictionary<NodeId, int>
+    {
+        [new NodeId(0, 0)] = 0,
+        [new NodeId(0, 1)] = 0,
+        [new NodeId(1, 0)] = 1,
+        [new NodeId(1, 1)] = 1
+    };
+
+    var definition = BoardDefinition.CreateTopology(
+        2,
+        2,
+        nodes,
+        links,
+        new NodeId(0, 0),
+        new[] { new NodeId(1, 1) },
+        nodeLayers: layers);
+
+    AssertEqual(2, definition.LayerCount);
+    AssertEqual(0, definition.GetLayer(new NodeId(0, 1)));
+    AssertEqual(1, definition.GetLayer(new NodeId(1, 0)));
+    AssertEqual(1, definition.TransitionLinks.Count);
+    AssertEqual(new NetworkLink(new NodeId(0, 1), new NodeId(1, 0)), definition.TransitionLinks.Single());
+}
+
 static void GameConfigurationDefaultsPreserveNetworkRules()
 {
     var configuration = new GameConfiguration();
@@ -204,6 +251,80 @@ static void GameConfigurationDefaultsPreserveNetworkRules()
     AssertEqual(NetworkRules.BaseNetworkIntegrity, configuration.BaseNetworkIntegrity);
     AssertEqual(NetworkRules.NearbyCorruptionThreat, configuration.NearbyCorruptionThreat);
     AssertEqual(NetworkRules.InstabilityTurnsBeforeCollapse, configuration.InstabilityTurnsBeforeCollapse);
+    AssertEqual(0, configuration.LayerModifiers.Count);
+}
+
+static void LayerRuleModifiersAffectIntegrityAndThreat()
+{
+    var playerCore = new NodeId(0, 0);
+    var tunedNode = new NodeId(1, 0);
+    var enemyNode = new NodeId(2, 0);
+    var definition = BoardDefinition.CreateTopology(
+        3,
+        2,
+        new[] { playerCore, tunedNode, enemyNode },
+        new[] { new NetworkLink(playerCore, tunedNode), new NetworkLink(tunedNode, enemyNode) },
+        playerCore,
+        new[] { enemyNode },
+        initialOwnership: new Dictionary<NodeId, NodeOwner>
+        {
+            [playerCore] = NodeOwner.Player,
+            [tunedNode] = NodeOwner.Player,
+            [enemyNode] = NodeOwner.Enemy
+        },
+        nodeLayers: new Dictionary<NodeId, int>
+        {
+            [playerCore] = 0,
+            [tunedNode] = 1,
+            [enemyNode] = 1
+        });
+    var game = NetworkGame.Create(definition, new GameConfiguration
+    {
+        LayerModifiers = new Dictionary<int, LayerRuleModifier>
+        {
+            [1] = new(IntegrityBonus: 2, ThreatBonus: 3)
+        }
+    });
+
+    var node = game.Board.GetNode(tunedNode);
+
+    AssertEqual(10, node.Integrity);
+    AssertEqual(12, node.Threat);
+    AssertContains("layer 2 tuning", node.DangerReason);
+}
+
+static void LayerRuleModifiersAffectCorruptionResistance()
+{
+    var playerCore = new NodeId(0, 0);
+    var target = new NodeId(1, 0);
+    var enemyNode = new NodeId(2, 0);
+    var definition = BoardDefinition.CreateTopology(
+        3,
+        2,
+        new[] { playerCore, target, enemyNode },
+        new[] { new NetworkLink(playerCore, target), new NetworkLink(target, enemyNode) },
+        playerCore,
+        new[] { enemyNode },
+        nodeLayers: new Dictionary<NodeId, int>
+        {
+            [playerCore] = 0,
+            [target] = 1,
+            [enemyNode] = 1
+        });
+    var game = NetworkGame.Create(definition, new GameConfiguration
+    {
+        EnemyDifficulty = EnemyDifficulty.Expert,
+        LayerModifiers = new Dictionary<int, LayerRuleModifier>
+        {
+            [1] = new(CorruptionResistanceBonus: 2)
+        }
+    });
+
+    var result = game.EndPlayerTurnWithResult();
+
+    AssertEqual(NodeOwner.Neutral, game.Board.GetNode(target).Owner);
+    AssertEqual(target, result.CorruptionFocusTarget);
+    AssertEqual(1, game.CorruptionPressure);
 }
 
 static void CustomBoardInitializationIsDeterministic()
@@ -645,6 +766,31 @@ static void InvalidActionsAfterGameOverDoNotMutateMission()
     AssertEqual(energyBefore, game.PlayerEnergy);
 }
 
+static void GameSnapshotRestoresActiveMissionContinuation()
+{
+    var game = PlayToObjectiveClaim();
+    var snapshot = game.CreateSnapshot();
+    var restored = NetworkGame.RestoreSnapshot(snapshot);
+
+    AssertEqual(game.TurnNumber, restored.TurnNumber);
+    AssertEqual(game.PlayerEnergy, restored.PlayerEnergy);
+    AssertEqual(game.CorruptionPressure, restored.CorruptionPressure);
+    AssertEqual(game.ObjectiveHoldTurns, restored.ObjectiveHoldTurns);
+    AssertEqual(game.Result, restored.Result);
+    AssertEqual(game.LastActionResult.Message, restored.LastActionResult.Message);
+    AssertEqual(DescribeBoard(game.Board), DescribeBoard(restored.Board));
+
+    var originalResult = game.ExecutePlayerAction(PlayerActionMode.Reinforce, game.ObjectiveNode!.Value);
+    var restoredResult = restored.ExecutePlayerAction(PlayerActionMode.Reinforce, restored.ObjectiveNode!.Value);
+
+    AssertEqual(originalResult.Succeeded, restoredResult.Succeeded);
+    AssertEqual(originalResult.Result, restoredResult.Result);
+    AssertEqual(originalResult.CorruptionTarget, restoredResult.CorruptionTarget);
+    AssertEqual(originalResult.CorruptionFocusTarget, restoredResult.CorruptionFocusTarget);
+    AssertEqual(originalResult.EnemyIntentSummary, restoredResult.EnemyIntentSummary);
+    AssertEqual(DescribeBoard(game.Board), DescribeBoard(restored.Board));
+}
+
 static void ProceduralMissionGenerationIsDeterministic()
 {
     var first = ProceduralMissionGenerator.Generate("regression-seed-6");
@@ -720,6 +866,20 @@ static void ProceduralMissionPlacementFollowsGameplayConstraints()
     AssertTrue(game.PlayerEnergy >= NetworkRules.InitialPlayerEnergy, "Expected procedural starting energy to preserve existing action pacing.");
 }
 
+static void ProceduralMissionsExposeLayerMetadata()
+{
+    var mission = ProceduralMissionGenerator.Generate("layer-metadata-check");
+    var board = mission.BoardDefinition;
+
+    AssertTrue(board.LayerCount >= 4, "Expected generated missions to expose multiple topology layers.");
+    AssertEqual(board.Nodes.Count, board.NodeLayers.Count);
+    AssertEqual(0, board.GetLayer(board.PlayerStart));
+    AssertEqual(board.LayerCount - 1, board.GetLayer(mission.ObjectiveNode));
+    AssertTrue(board.TransitionLinks.Count >= board.LayerCount - 1, "Expected generated missions to expose transition links between layers.");
+    AssertEqual(board.LayerCount.ToString(), board.Metadata["layerCount"]);
+    AssertEqual(board.TransitionLinks.Count.ToString(), board.Metadata["transitionCount"]);
+}
+
 static void ProceduralLayoutIsReadableAndComplete()
 {
     var mission = ProceduralMissionGenerator.Generate("layout-check");
@@ -738,6 +898,259 @@ static void ProceduralLayoutIsReadableAndComplete()
 
     var crossings = CountEdgeCrossings(board);
     AssertTrue(crossings <= board.Links.Count / 3, $"Expected restrained edge crossings, got {crossings} for {board.Links.Count} links.");
+}
+
+static void ScenarioCatalogProvidesBalancedRegressionScenarios()
+{
+    var scenarios = ScenarioCatalog.CreateBalancedRegressionScenarios();
+
+    AssertTrue(scenarios.Count >= 3, "Expected at least three curated regression scenarios.");
+    foreach (var mission in scenarios)
+    {
+        var board = mission.BoardDefinition;
+        AssertEqual(board.Nodes.Count, GetReachableNodes(board, board.PlayerStart).Count);
+        AssertTrue(GetShortestPathLength(board, board.PlayerStart, mission.ObjectiveNode) >= 3, $"Expected {mission.Name} objective to require a real route.");
+        AssertTrue(board.ResourceNodes.Count >= 1, $"Expected {mission.Name} to include at least one Resource.");
+        AssertTrue(board.RelayNodes.Count >= 1, $"Expected {mission.Name} to include at least one Relay.");
+        AssertTrue(board.FirewallNodes.Count >= 1, $"Expected {mission.Name} to include at least one Firewall.");
+
+        var game = NetworkGame.CreateMission(mission, new GameConfiguration { EnemyPersonality = EnemyPersonality.Opportunistic, EnemyDifficulty = EnemyDifficulty.Hard });
+        var report = BalanceScreening.Run(game, maxActions: 14);
+        AssertFalse(report.Result == GameResult.PlayerLoss, $"Expected {mission.Name} to avoid forced loss under the screening route. Trace: {report.Trace}");
+        AssertTrue(report.PlayerOwnedNodes >= 4, $"Expected {mission.Name} screening route to establish a real foothold. Trace: {report.Trace}");
+    }
+}
+
+static void GeneratedMissionCorpusPassesBalanceScreening()
+{
+    var seeds = new[]
+    {
+        "balance-entry-01",
+        "balance-entry-02",
+        "balance-entry-03",
+        "balance-wide-01",
+        "balance-branch-01",
+        "balance-pressure-01"
+    };
+
+    var settings = ProceduralMissionSettings.Default with
+    {
+        NodeCount = 20,
+        ObjectiveDistance = 5,
+        GraphDensity = 0.24d,
+        StartingPlayerEnergy = 7
+    };
+
+    foreach (var seed in seeds)
+    {
+        var mission = ProceduralMissionGenerator.Generate(seed, settings);
+        var game = NetworkGame.CreateMission(mission, new GameConfiguration
+        {
+            EnemyPersonality = CampaignProgressionPlanner.SelectPersonality(ProceduralSeed.FromText(seed)),
+            EnemyDifficulty = EnemyDifficulty.Hard
+        });
+        var report = BalanceScreening.Run(game, maxActions: 10);
+
+        AssertFalse(report.Result == GameResult.PlayerLoss && report.ActionsTaken < 6, $"Expected generated seed {seed} to avoid immediate forced loss. Trace: {report.Trace}");
+        AssertTrue(report.MaxPlayerOwnedNodes >= 3, $"Expected generated seed {seed} to allow early expansion. Trace: {report.Trace}");
+        AssertTrue(report.BestObjectiveDistance <= settings.ObjectiveDistance, $"Expected generated seed {seed} to preserve or improve objective distance. Trace: {report.Trace}");
+    }
+}
+
+static void BalanceScreeningCoversPersonalityPressureMatrix()
+{
+    var seeds = new[]
+    {
+        "matrix-entry-01",
+        "matrix-entry-02",
+        "matrix-wide-01",
+        "matrix-branch-01",
+        "matrix-deep-01",
+        "matrix-pressure-01"
+    };
+    var personalities = new[]
+    {
+        EnemyPersonality.Aggressive,
+        EnemyPersonality.Defensive,
+        EnemyPersonality.Economic,
+        EnemyPersonality.Opportunistic,
+        EnemyPersonality.CorruptionFocused
+    };
+    var settings = ProceduralMissionSettings.Default with
+    {
+        NodeCount = 22,
+        ObjectiveDistance = 6,
+        GraphDensity = 0.28d,
+        StartingPlayerEnergy = 8
+    };
+
+    var forcedEarlyLosses = 0;
+    var stalledOpenings = 0;
+    var earlyLossDetails = new List<string>();
+    foreach (var seed in seeds)
+    {
+        foreach (var personality in personalities)
+        {
+            var mission = ProceduralMissionGenerator.Generate(seed, settings);
+            var game = NetworkGame.CreateMission(mission, new GameConfiguration
+            {
+                EnemyPersonality = personality,
+                EnemyDifficulty = EnemyDifficulty.Hard
+            });
+            var report = BalanceScreening.Run(game, maxActions: 12);
+
+            if (report.Result == GameResult.PlayerLoss && report.ActionsTaken < 5)
+            {
+                forcedEarlyLosses++;
+                earlyLossDetails.Add($"{seed}/{personality}: {report.Trace}");
+            }
+
+            if (report.MaxPlayerOwnedNodes < 3 || report.BestObjectiveDistance > settings.ObjectiveDistance)
+            {
+                stalledOpenings++;
+            }
+        }
+    }
+
+    AssertTrue(forcedEarlyLosses == 0, $"Expected no forced early losses. {string.Join(" || ", earlyLossDetails)}");
+    AssertTrue(stalledOpenings <= 2, $"Expected matrix screening to leave only a small number of stalled openings, got {stalledOpenings}.");
+}
+
+static void TacticalAiProfilesStayLegalAcrossSeedCorpus()
+{
+    var seeds = new[] { "ai-corpus-01", "ai-corpus-02", "ai-corpus-03", "ai-corpus-04" };
+    var personalities = new[]
+    {
+        EnemyPersonality.Aggressive,
+        EnemyPersonality.Defensive,
+        EnemyPersonality.Economic,
+        EnemyPersonality.Opportunistic,
+        EnemyPersonality.CorruptionFocused
+    };
+
+    foreach (var seed in seeds)
+    {
+        foreach (var personality in personalities)
+        {
+            var game = NetworkGame.CreateMission(ProceduralMissionGenerator.Generate(seed), new GameConfiguration
+            {
+                EnemyPersonality = personality,
+                EnemyDifficulty = EnemyDifficulty.Expert
+            });
+
+            for (var turn = 0; turn < 3 && game.Result == GameResult.InProgress; turn++)
+            {
+                var result = game.EndPlayerTurnWithResult();
+                var target = result.CorruptionTarget ?? result.CorruptionFocusTarget;
+                AssertTrue(target.HasValue, $"Expected {personality} on {seed} to choose a target on turn {turn + 1}.");
+                AssertTrue(result.EnemyActionSource.HasValue, $"Expected {personality} on {seed} to report an action source.");
+                var source = result.EnemyActionSource.GetValueOrDefault();
+                var targetId = target.GetValueOrDefault();
+                AssertTrue(game.Board.AreConnected(source, targetId), $"Expected {personality} on {seed} to use an active link.");
+                AssertEqual(NodeOwner.Enemy, game.Board.GetNode(source).Owner);
+                AssertFalse(string.IsNullOrWhiteSpace(result.EnemyIntentSummary), $"Expected {personality} on {seed} to report intent.");
+            }
+        }
+    }
+}
+
+static void CampaignProgressionStartsFromDeterministicOpeningTrace()
+{
+    var first = CampaignProgressionPlanner.CreateInitialPlan();
+    var second = CampaignProgressionPlanner.CreatePlan(Array.Empty<CampaignMissionRecord>());
+
+    AssertEqual(1, first.Stage);
+    AssertEqual(first.Seed, second.Seed);
+    AssertEqual("campaign-01-entry-001", first.Seed.Text);
+    AssertEqual(EnemyDifficulty.Standard, first.Configuration.EnemyDifficulty);
+    AssertEqual("signal-recovery", first.ArcId);
+    AssertEqual("Signal Recovery", first.ArcTitle);
+    AssertEqual("Wake the Lattice", first.MissionTitle);
+    AssertEqual("Opening Route", first.BranchLabel);
+    AssertContains("First contact", first.BranchSummary);
+    AssertContains("Stage 1", first.Briefing);
+    AssertContains("Wake the Lattice", first.Briefing);
+}
+
+static void CampaignProgressionAdvancesAfterWins()
+{
+    var history = new[]
+    {
+        new CampaignMissionRecord(ProceduralSeed.FromText("campaign-01-entry-001"), GameResult.PlayerWin, 6, EnemyPersonality.Opportunistic),
+        new CampaignMissionRecord(ProceduralSeed.FromText("campaign-02-advance-002"), GameResult.PlayerWin, 8, EnemyPersonality.Defensive)
+    };
+
+    var plan = CampaignProgressionPlanner.CreatePlan(history);
+
+    AssertEqual(3, plan.Stage);
+    AssertEqual("campaign-03-advance-003", plan.Seed.Text);
+    AssertEqual("Gate the Firewall", plan.MissionTitle);
+    AssertEqual("Advance Route", plan.BranchLabel);
+    AssertContains("Advancing", plan.BranchSummary);
+    AssertTrue(plan.MissionSettings.NodeCount > ProceduralMissionSettings.Default.NodeCount, "Expected later campaign stages to grow the generated network.");
+    AssertEqual(EnemyDifficulty.Hard, plan.Configuration.EnemyDifficulty);
+    AssertTrue(plan.Configuration.LayerModifiers.Count > 0, "Expected campaign stages to opt into layer-specific tuning.");
+}
+
+static void CampaignProgressionRecoverySoftensAfterLoss()
+{
+    var history = new[]
+    {
+        new CampaignMissionRecord(ProceduralSeed.FromText("campaign-01-entry-001"), GameResult.PlayerLoss, 5, EnemyPersonality.Aggressive)
+    };
+
+    var plan = CampaignProgressionPlanner.CreatePlan(history);
+
+    AssertEqual(1, plan.Stage);
+    AssertEqual("campaign-01-recover-002", plan.Seed.Text);
+    AssertTrue(plan.MissionSettings.StartingPlayerEnergy > ProceduralMissionSettings.Default.StartingPlayerEnergy, "Expected recovery missions to grant a small energy cushion.");
+    AssertEqual(1, plan.Configuration.CorruptionPressureGrowthPerTurn);
+    AssertEqual("Recovery Route", plan.BranchLabel);
+    AssertContains("charge cushion", plan.BranchSummary);
+    AssertContains("recovery", plan.Briefing);
+    AssertContains("Re-enter the damaged mesh", plan.Briefing);
+}
+
+static void CampaignProgressionUsesAuthoredArcMissions()
+{
+    AssertEqual("Signal Recovery", CampaignArcCatalog.Default.Title);
+    AssertEqual(8, CampaignArcCatalog.Default.Missions.Count);
+
+    var lateHistory = Enumerable.Range(1, 7)
+        .Select(stage => new CampaignMissionRecord(
+            ProceduralSeed.FromText($"campaign-{stage:00}-advance-{stage:000}"),
+            GameResult.PlayerWin,
+            6 + stage,
+            EnemyPersonality.Opportunistic))
+        .ToArray();
+
+    var plan = CampaignProgressionPlanner.CreatePlan(lateHistory);
+
+    AssertEqual(8, plan.Stage);
+    AssertEqual("Seal the Kernel", plan.MissionTitle);
+    AssertContains("maximum corruption pressure", plan.Briefing);
+    AssertEqual("signal-recovery", plan.ArcId);
+}
+
+static void ProfileProgressionSummarizesCompletedMissions()
+{
+    var history = new[]
+    {
+        new CampaignMissionRecord(ProceduralSeed.FromText("campaign-01-entry-001"), GameResult.PlayerWin, 6, EnemyPersonality.Opportunistic, Stage: 1),
+        new CampaignMissionRecord(ProceduralSeed.FromText("campaign-02-advance-002"), GameResult.PlayerLoss, 9, EnemyPersonality.Defensive, Stage: 2),
+        new CampaignMissionRecord(ProceduralSeed.FromText("campaign-02-recover-003"), GameResult.PlayerWin, 7, EnemyPersonality.Economic, Stage: 2),
+        new CampaignMissionRecord(ProceduralSeed.FromText("campaign-03-advance-004"), GameResult.PlayerWin, 8, EnemyPersonality.Aggressive, Stage: 3),
+        new CampaignMissionRecord(ProceduralSeed.FromText("campaign-04-advance-005"), GameResult.PlayerWin, 9, EnemyPersonality.CorruptionFocused, Stage: 4)
+    };
+
+    var progress = ProfileProgression.Calculate(history);
+
+    AssertEqual(5, progress.Level);
+    AssertEqual(3, progress.CurrentWinStreak);
+    AssertEqual(4, progress.BestStage);
+    AssertEqual(4, progress.Wins);
+    AssertEqual(1, progress.Losses);
+    AssertEqual("Signal Climber", progress.Title);
 }
 
 static void TacticalAiIsDeterministicForIdenticalSeededMissions()
@@ -787,7 +1200,7 @@ static void TacticalAiPrioritizesObjectivePressure()
         EnemyDifficulty = EnemyDifficulty.Expert
     });
 
-    var decision = TacticalEnemyPlanner.SelectDecision(game.Board, game.Configuration, game.PlayerCore, game.ObjectiveNode, corruptionPressure: 1, turnNumber: 1);
+    var decision = TacticalEnemyPlanner.SelectDecision(game.BoardDefinition, game.Board, game.Configuration, game.PlayerCore, game.ObjectiveNode, corruptionPressure: 1, turnNumber: 1);
 
     AssertEqual(game.ObjectiveNode, decision.Target);
     AssertContains("objective", decision.PrimaryFactor);
@@ -800,9 +1213,9 @@ static void EnemyPersonalitiesChooseDifferentTargets()
     var defensive = NetworkGame.CreateMission(mission, new GameConfiguration { EnemyPersonality = EnemyPersonality.Defensive, EnemyDifficulty = EnemyDifficulty.Expert });
     var economic = NetworkGame.CreateMission(mission, new GameConfiguration { EnemyPersonality = EnemyPersonality.Economic, EnemyDifficulty = EnemyDifficulty.Expert });
 
-    var aggressiveTarget = TacticalEnemyPlanner.SelectDecision(aggressive.Board, aggressive.Configuration, aggressive.PlayerCore, aggressive.ObjectiveNode, 1, 1).Target;
-    var defensiveTarget = TacticalEnemyPlanner.SelectDecision(defensive.Board, defensive.Configuration, defensive.PlayerCore, defensive.ObjectiveNode, 1, 1).Target;
-    var economicTarget = TacticalEnemyPlanner.SelectDecision(economic.Board, economic.Configuration, economic.PlayerCore, economic.ObjectiveNode, 1, 1).Target;
+    var aggressiveTarget = TacticalEnemyPlanner.SelectDecision(aggressive.BoardDefinition, aggressive.Board, aggressive.Configuration, aggressive.PlayerCore, aggressive.ObjectiveNode, 1, 1).Target;
+    var defensiveTarget = TacticalEnemyPlanner.SelectDecision(defensive.BoardDefinition, defensive.Board, defensive.Configuration, defensive.PlayerCore, defensive.ObjectiveNode, 1, 1).Target;
+    var economicTarget = TacticalEnemyPlanner.SelectDecision(economic.BoardDefinition, economic.Board, economic.Configuration, economic.PlayerCore, economic.ObjectiveNode, 1, 1).Target;
 
     AssertEqual(new NodeId(1, 1), aggressiveTarget);
     AssertEqual(new NodeId(3, 1), defensiveTarget);
@@ -815,8 +1228,8 @@ static void DifficultyChangesDecisionQualityWithoutBonuses()
     var easy = NetworkGame.CreateMission(mission, new GameConfiguration { EnemyPersonality = EnemyPersonality.Opportunistic, EnemyDifficulty = EnemyDifficulty.Easy });
     var expert = NetworkGame.CreateMission(mission, new GameConfiguration { EnemyPersonality = EnemyPersonality.Opportunistic, EnemyDifficulty = EnemyDifficulty.Expert });
 
-    var easyDecision = TacticalEnemyPlanner.SelectDecision(easy.Board, easy.Configuration, easy.PlayerCore, easy.ObjectiveNode, 1, 1);
-    var expertDecision = TacticalEnemyPlanner.SelectDecision(expert.Board, expert.Configuration, expert.PlayerCore, expert.ObjectiveNode, 1, 1);
+    var easyDecision = TacticalEnemyPlanner.SelectDecision(easy.BoardDefinition, easy.Board, easy.Configuration, easy.PlayerCore, easy.ObjectiveNode, 1, 1);
+    var expertDecision = TacticalEnemyPlanner.SelectDecision(expert.BoardDefinition, expert.Board, expert.Configuration, expert.PlayerCore, expert.ObjectiveNode, 1, 1);
 
     AssertTrue(expertDecision.Score >= easyDecision.Score, "Expected higher difficulty to select an equal or better evaluated action.");
     AssertEqual(NetworkRules.CorruptionPressureGrowthPerTurn, easy.Configuration.CorruptionPressureGrowthPerTurn);
@@ -904,9 +1317,14 @@ static void AssertFalse(bool condition, string message)
 
 static string DescribeBoard(NetworkBoard board)
 {
-    return string.Join("|", board.Nodes
+    var nodes = string.Join("|", board.Nodes
         .OrderBy(node => node.Id)
-        .Select(node => $"{node.Id}:{node.Owner}:{node.Type}:{node.Integrity}:{node.Threat}"));
+        .Select(node => $"{node.Id}:{node.Owner}:{node.Type}:{node.Integrity}:{node.ReinforcementLevel}:{node.Threat}:{node.UnstableTurns}:{node.DangerReason}"));
+    var connections = string.Join("|", board.Connections
+        .OrderBy(connection => connection.First)
+        .ThenBy(connection => connection.Second)
+        .Select(connection => $"{connection.First}-{connection.Second}:{connection.Strength}"));
+    return $"{nodes}||{connections}";
 }
 
 static string DescribeDefinition(BoardDefinition definition)
@@ -916,7 +1334,8 @@ static string DescribeDefinition(BoardDefinition definition)
     var types = string.Join(",", definition.NodeTypes.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}:{pair.Value}"));
     var owners = string.Join(",", definition.InitialOwnership.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}:{pair.Value}"));
     var layout = string.Join(",", definition.Layout.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}:{pair.Value.X:0.00}:{pair.Value.Y:0.00}"));
-    return $"{nodes}|{links}|{types}|{owners}|{definition.PlayerStart}|{string.Join(",", definition.CorruptionStarts)}|{layout}";
+    var layers = string.Join(",", definition.NodeLayers.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}:{pair.Value}"));
+    return $"{nodes}|{links}|{types}|{owners}|{definition.PlayerStart}|{string.Join(",", definition.CorruptionStarts)}|{layout}|{layers}";
 }
 
 static IReadOnlySet<NodeId> GetReachableNodes(BoardDefinition definition, NodeId start)
@@ -1023,3 +1442,15 @@ static bool Direction(NetworkNodePosition a, NetworkNodePosition b, NetworkNodeP
 {
     return ((c.X - a.X) * (b.Y - a.Y) - (b.X - a.X) * (c.Y - a.Y)) > 0;
 }
+
+enum ScreeningActionMode
+{
+    Claim = PlayerActionMode.Claim,
+    Reinforce = PlayerActionMode.Reinforce,
+    Weaken = PlayerActionMode.Weaken,
+    EndTurn
+}
+
+readonly record struct ScreeningAction(ScreeningActionMode Mode, NodeId? Target);
+
+readonly record struct BalanceScreenReport(GameResult Result, int ActionsTaken, int TurnNumber, int PlayerOwnedNodes, int MaxPlayerOwnedNodes, int ObjectiveDistanceRemaining, int BestObjectiveDistance, string Trace);

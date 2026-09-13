@@ -66,4 +66,19 @@ public sealed class ConnectionState
             Strength--;
         }
     }
+
+    internal void RestoreSnapshot(ConnectionSnapshot snapshot)
+    {
+        if (!Connects(snapshot.First, snapshot.Second))
+        {
+            throw new ArgumentException($"Snapshot for {snapshot.First}-{snapshot.Second} cannot restore connection {First}-{Second}.", nameof(snapshot));
+        }
+
+        if (snapshot.Strength < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(snapshot), "Connection strength cannot be negative.");
+        }
+
+        Strength = snapshot.Strength;
+    }
 }

@@ -13,6 +13,7 @@ public sealed class BoardDefinition
         IReadOnlyList<NodeId> corruptionStarts,
         int? startingPlayerEnergy,
         IReadOnlyDictionary<NodeId, NetworkNodePosition> layout,
+        IReadOnlyDictionary<NodeId, int> nodeLayers,
         IReadOnlyDictionary<string, string> metadata)
     {
         Width = width;
@@ -25,6 +26,7 @@ public sealed class BoardDefinition
         CorruptionStarts = corruptionStarts.OrderBy(node => node).ToList();
         StartingPlayerEnergy = startingPlayerEnergy;
         Layout = new Dictionary<NodeId, NetworkNodePosition>(layout);
+        NodeLayers = new Dictionary<NodeId, int>(nodeLayers);
         Metadata = new Dictionary<string, string>(metadata);
     }
 
@@ -48,7 +50,17 @@ public sealed class BoardDefinition
 
     public IReadOnlyDictionary<NodeId, NetworkNodePosition> Layout { get; }
 
+    public IReadOnlyDictionary<NodeId, int> NodeLayers { get; }
+
     public IReadOnlyDictionary<string, string> Metadata { get; }
+
+    public int LayerCount => NodeLayers.Count == 0 ? 1 : NodeLayers.Values.Distinct().Count();
+
+    public IReadOnlyList<NetworkLink> TransitionLinks => Links
+        .Where(link => GetLayer(link.First) != GetLayer(link.Second))
+        .OrderBy(link => link.First)
+        .ThenBy(link => link.Second)
+        .ToList();
 
     public IReadOnlyList<NodeId> ResourceNodes => GetNodesOfType(NodeType.Resource);
 
@@ -172,7 +184,8 @@ public sealed class BoardDefinition
         int? startingPlayerEnergy = null,
         IReadOnlyDictionary<string, string>? metadata = null,
         IReadOnlyDictionary<NodeId, NodeOwner>? initialOwnership = null,
-        IReadOnlyDictionary<NodeId, NetworkNodePosition>? layout = null)
+        IReadOnlyDictionary<NodeId, NetworkNodePosition>? layout = null,
+        IReadOnlyDictionary<NodeId, int>? nodeLayers = null)
     {
         ValidateDimensions(width, height);
 
@@ -261,6 +274,31 @@ public sealed class BoardDefinition
             ValidateNodeInLayout(nodeId, nodeSet, nameof(layout));
         }
 
+        var ownedNodeLayers = nodeLayers is null
+            ? orderedNodes.ToDictionary(node => node, _ => 0)
+            : new Dictionary<NodeId, int>(nodeLayers);
+
+        foreach (var nodeId in ownedNodeLayers.Keys)
+        {
+            ValidateNodeInLayout(nodeId, nodeSet, nameof(nodeLayers));
+        }
+
+        foreach (var nodeId in orderedNodes)
+        {
+            if (!ownedNodeLayers.ContainsKey(nodeId))
+            {
+                ownedNodeLayers[nodeId] = 0;
+            }
+        }
+
+        foreach (var pair in ownedNodeLayers)
+        {
+            if (pair.Value < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(nodeLayers), "Layer indices cannot be negative.");
+            }
+        }
+
         return new BoardDefinition(
             width,
             height,
@@ -272,7 +310,15 @@ public sealed class BoardDefinition
             orderedCorruptionStarts,
             startingPlayerEnergy,
             ownedLayout,
+            ownedNodeLayers,
             metadata ?? new Dictionary<string, string>());
+    }
+
+    public int GetLayer(NodeId nodeId)
+    {
+        return NodeLayers.TryGetValue(nodeId, out var layer)
+            ? layer
+            : 0;
     }
 
     private static void ValidateDimensions(int width, int height)

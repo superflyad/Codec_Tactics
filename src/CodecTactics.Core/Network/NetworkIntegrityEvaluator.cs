@@ -3,6 +3,7 @@ namespace CodecTactics.Core.Network;
 public static class NetworkIntegrityEvaluator
 {
     public static IReadOnlyList<NodeId> Evaluate(
+        BoardDefinition definition,
         NetworkBoard board,
         NodeId playerCore,
         int corruptionPressure,
@@ -15,7 +16,7 @@ public static class NetworkIntegrityEvaluator
         {
             if (node.Owner != NodeOwner.Player)
             {
-                node.SetNetworkRisk(GetEnemyOrNeutralIntegrity(node, configuration), 0, "Stable.", advanceInstability: false);
+                node.SetNetworkRisk(GetEnemyOrNeutralIntegrity(definition, node, configuration), 0, "Stable.", advanceInstability: false);
                 continue;
             }
 
@@ -31,10 +32,13 @@ public static class NetworkIntegrityEvaluator
             var distanceFromCore = GetOwnedDistance(board, playerCore, node.Id);
             var connectedToCore = distanceFromCore.HasValue;
             var nearestCorruptionDistance = GetDistanceToOwner(board, node.Id, NodeOwner.Enemy);
+            var layer = definition.GetLayer(node.Id);
+            var layerModifier = configuration.GetLayerModifier(layer);
 
             var integrity = configuration.BaseNetworkIntegrity
                 + node.ReinforcementLevel
-                + ownedAdjacent.Count * configuration.AdjacentSupportIntegrityBonus;
+                + ownedAdjacent.Count * configuration.AdjacentSupportIntegrityBonus
+                + layerModifier.IntegrityBonus;
 
             if (connectedToCore)
             {
@@ -63,7 +67,8 @@ public static class NetworkIntegrityEvaluator
 
             var threat = enemyAdjacent.Count * configuration.NearbyCorruptionThreat
                 + neutralAdjacent.Count * configuration.FrontierExposureThreat
-                + corruptionPressure / configuration.CorruptionPressureThreatDivisor;
+                + corruptionPressure / configuration.CorruptionPressureThreatDivisor
+                + layerModifier.ThreatBonus;
 
             if (!connectedToCore)
             {
@@ -86,7 +91,7 @@ public static class NetworkIntegrityEvaluator
                 };
             }
 
-            var reason = BuildDangerReason(connectedToCore, distanceFromCore, ownedAdjacent.Count, enemyAdjacent.Count, neutralAdjacent.Count, nearestCorruptionDistance);
+            var reason = BuildDangerReason(connectedToCore, distanceFromCore, ownedAdjacent.Count, enemyAdjacent.Count, neutralAdjacent.Count, nearestCorruptionDistance, layer, layerModifier);
             node.SetNetworkRisk(integrity, threat, reason, advanceInstability);
 
             if (node.UnstableTurns >= configuration.InstabilityTurnsBeforeCollapse)
@@ -103,11 +108,12 @@ public static class NetworkIntegrityEvaluator
         return collapsed;
     }
 
-    private static int GetEnemyOrNeutralIntegrity(NodeState node, GameConfiguration configuration)
+    private static int GetEnemyOrNeutralIntegrity(BoardDefinition definition, NodeState node, GameConfiguration configuration)
     {
-        return node.Type == NodeType.Firewall
+        var baseResistance = node.Type == NodeType.Firewall
             ? configuration.FirewallCorruptionResistance
             : configuration.StandardCorruptionResistance;
+        return Math.Max(1, baseResistance + configuration.GetLayerModifier(definition.GetLayer(node.Id)).CorruptionResistanceBonus);
     }
 
     private static string BuildDangerReason(
@@ -116,7 +122,9 @@ public static class NetworkIntegrityEvaluator
         int ownedConnections,
         int enemyConnections,
         int neutralConnections,
-        int? nearestCorruptionDistance)
+        int? nearestCorruptionDistance,
+        int layer,
+        LayerRuleModifier layerModifier)
     {
         var reasons = new List<string>();
 
@@ -146,6 +154,11 @@ public static class NetworkIntegrityEvaluator
         if (neutralConnections > 0)
         {
             reasons.Add($"{neutralConnections} frontier edges");
+        }
+
+        if (layerModifier.IntegrityBonus != 0 || layerModifier.ThreatBonus != 0)
+        {
+            reasons.Add($"layer {layer + 1} tuning");
         }
 
         return reasons.Count == 0 ? "Dense connected structure." : string.Join("; ", reasons);

@@ -23,7 +23,50 @@ Generation is split into independent steps:
 - `ProceduralNetworkLayout` assigns readable positions to the generated graph without changing gameplay links.
 - `NetworkGame` consumes the resulting mission exactly like an authored mission.
 
-Generated graphs are validated by tests for determinism, connectivity, objective reachability, node counts, placement constraints, graph validity, layout completeness, node spacing, and restrained edge crossings.
+Generated graphs are validated by tests for determinism, connectivity, objective reachability, node counts, placement constraints, graph validity, layout completeness, node spacing, restrained edge crossings, layer metadata, and transition links.
+
+## Layered Topology
+
+Layer data is explicit in the core board definition. `BoardDefinition.NodeLayers` assigns each node to a topology layer, and `BoardDefinition.TransitionLinks` lists active graph links that cross from one layer to another. Procedural missions use their generated depth structure as layer assignments.
+
+Layer data does not add a new player action or a separate traversal rule yet. Claiming, Relay reach, corruption spread, and objective progress continue to operate over explicit graph links. `GameConfiguration.LayerModifiers` can tune per-layer integrity, threat, and corruption resistance; the `Signal Recovery` campaign uses this to give the entry layer a small stability bonus and make deeper layers more hostile. The MonoGame frontend can focus the view on all layers or one layer at a time, dimming out-of-focus nodes and links without changing core state. It also renders a code-drawn layer cube inset that summarizes visible layer slices, transition rails, ownership pressure, and objective location from the same topology data.
+
+## Campaign Progression and Seed History
+
+`CampaignArcCatalog` defines the current authored arc, `Signal Recovery`, as eight named mission beats with normal and recovery briefings. `CampaignProgressionPlanner` places generated missions inside that arc without adding new player mechanics or bespoke mission scripting. It reads completed mission records, creates the next deterministic seed, scales mission settings by stage, selects enemy difficulty and personality through the same visible rules, and attaches the authored arc title, mission title, briefing, branch route label, and branch route summary to the plan.
+
+- With no completed missions, the opening trace is `campaign-01-entry-001`.
+- Wins advance the stage and increase generated mission pressure through larger graphs, longer objectives, higher difficulty, and eventually additional corruption starts.
+- Losses keep the player on the current stage and generate a recovery trace with a small starting-energy cushion.
+- The next plan carries an Opening Route, Advance Route, or Recovery Route summary so the Operations screen can explain why this trace is next.
+- The MonoGame frontend persists completed seed runs in local application data and uses that history when loading the next campaign trace after a mission result.
+- During an unfinished mission, New Seed still creates a free procedural trace instead of advancing campaign history.
+- `ProfileProgression` derives local player level, XP, title, win/loss totals, best stage, and current win streak from completed campaign runs. The MonoGame frontend stores a cached profile summary beside seed history and shows the current profile line in the HUD.
+- The active arc provides authored mission context, branch route presentation, and local profile progression, but not cinematic scenes, authored one-off objectives, dialogue, account login, or cloud sync.
+
+## Save and Load
+
+`NetworkGame.CreateSnapshot()` captures active mission state without changing gameplay rules. The snapshot includes the board definition, mission definition, configuration, turn state, player energy, corruption pressure, phase, result, objective hold progress, node ownership and risk state, reinforcement levels, connection strength, and last reported action state.
+
+`NetworkGame.RestoreSnapshot()` recreates a deterministic game from that snapshot. The MonoGame frontend stores active saves beside seed history in local application data and exposes three local slots through Save, Load, and slot selection controls.
+
+This is a local slot save boundary, not a cloud sync, account login, or authored campaign-state save system.
+
+## Operations Flow
+
+The MonoGame frontend starts on an Operations screen instead of dropping directly into a mission. The screen summarizes local profile progression, previews the next campaign trace, shows the current route branch context, shows save slot state, and routes to Continue Campaign, Free Trace, Load Slot, or slot selection. In mission, `Esc` returns to Operations; from Operations, `Esc` exits.
+
+## Scenario and Balance Screening
+
+`ScenarioCatalog` defines curated regression missions that use alternate board definitions without changing core rules:
+
+- `Secure the Uplink`: the authored vertical-slice regression mission.
+- `Relay Ladder`: a 6x4 relay-chain route with a far corruption front.
+- `Firewall Gate`: a fast firewall breach route with one-turn hold pacing.
+
+`BalanceScreening` provides the deterministic screening player used by tests. The screen prefers objective claims when reachable, adjacent-safe expansion, urgent reinforcement, and reachable corruption weakening. The automated suite runs it across the curated catalog, a generated seed corpus, and a generated personality/pressure matrix. It also checks tactical AI legality across multiple seeds and all five personalities.
+
+This screening is intended to catch regressions and obviously hostile tuning. It is not a substitute for human playtesting, final balance validation, or production difficulty tuning.
 
 ## Node Types
 

@@ -25,9 +25,10 @@ public static class ProceduralMissionGenerator
         var objectiveNode = layers[^1][0];
         var links = BuildLinks(layers, generationSettings, random);
         var distances = CalculateDistances(nodes, links, playerStart);
-        var corruptionStarts = SelectCorruptionStarts(nodes, objectiveNode, distances, generationSettings.CorruptionStartCount);
+        var corruptionStarts = SelectCorruptionStarts(nodes, links, objectiveNode, distances, generationSettings.CorruptionStartCount);
         var nodeTypes = SelectNodeTypes(nodes, playerStart, objectiveNode, corruptionStarts, distances, generationSettings, random);
         var layout = ProceduralNetworkLayout.CreateLayout(nodes, links, playerStart, objectiveNode, seed.Value);
+        var nodeLayers = BuildLayerAssignments(layers);
         var width = nodes.Max(node => node.X) + 1;
         var height = nodes.Max(node => node.Y) + 1;
         var board = BoardDefinition.CreateTopology(
@@ -46,9 +47,12 @@ public static class ProceduralMissionGenerator
                 ["seed"] = seed.Value.ToString(),
                 ["seedText"] = seed.Text,
                 ["nodeCount"] = nodes.Count.ToString(),
-                ["edgeCount"] = links.Count.ToString()
+                ["edgeCount"] = links.Count.ToString(),
+                ["layerCount"] = layers.Count.ToString(),
+                ["transitionCount"] = links.Count(link => nodeLayers[link.First] != nodeLayers[link.Second]).ToString()
             },
-            layout: layout);
+            layout: layout,
+            nodeLayers: nodeLayers);
 
         return new MissionDefinition(
             $"Generated Network {seed.Text}",
@@ -89,6 +93,20 @@ public static class ProceduralMissionGenerator
         }
 
         return layers;
+    }
+
+    private static IReadOnlyDictionary<NodeId, int> BuildLayerAssignments(IReadOnlyList<IReadOnlyList<NodeId>> layers)
+    {
+        var assignments = new Dictionary<NodeId, int>();
+        for (var layer = 0; layer < layers.Count; layer++)
+        {
+            foreach (var node in layers[layer])
+            {
+                assignments[node] = layer;
+            }
+        }
+
+        return assignments;
     }
 
     private static IReadOnlyList<NetworkLink> BuildLinks(IReadOnlyList<IReadOnlyList<NodeId>> layers, ProceduralMissionSettings settings, DeterministicRandom random)
@@ -221,15 +239,31 @@ public static class ProceduralMissionGenerator
 
     private static IReadOnlyList<NodeId> SelectCorruptionStarts(
         IReadOnlyList<NodeId> nodes,
+        IReadOnlyList<NetworkLink> links,
         NodeId objectiveNode,
         IReadOnlyDictionary<NodeId, int> distances,
         int count)
     {
-        return nodes
+        var objectiveNeighbors = links
+            .Where(link => link.Contains(objectiveNode))
+            .Select(link => link.First.Equals(objectiveNode) ? link.Second : link.First)
+            .ToHashSet();
+        var preferred = nodes
             .Where(node => !node.Equals(objectiveNode))
+            .Where(node => !objectiveNeighbors.Contains(node))
             .OrderByDescending(node => distances.TryGetValue(node, out var distance) ? distance : -1)
             .ThenByDescending(node => node.X)
             .ThenBy(node => node.Y)
+            .ToList();
+        var fallback = nodes
+            .Where(node => !node.Equals(objectiveNode))
+            .Except(preferred)
+            .OrderByDescending(node => distances.TryGetValue(node, out var distance) ? distance : -1)
+            .ThenByDescending(node => node.X)
+            .ThenBy(node => node.Y);
+
+        return preferred
+            .Concat(fallback)
             .Take(count)
             .OrderBy(node => node)
             .ToList();

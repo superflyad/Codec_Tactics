@@ -3,6 +3,7 @@ namespace CodecTactics.Core.Network;
 public static class TacticalEnemyPlanner
 {
     public static TacticalEnemyDecision SelectDecision(
+        BoardDefinition definition,
         NetworkBoard board,
         GameConfiguration configuration,
         NodeId playerCore,
@@ -11,7 +12,7 @@ public static class TacticalEnemyPlanner
         int turnNumber)
     {
         var profile = TacticalEnemyProfile.Create(configuration.EnemyPersonality);
-        var candidates = EvaluateCandidates(board, configuration, profile, playerCore, objectiveNode, corruptionPressure)
+        var candidates = EvaluateCandidates(definition, board, configuration, profile, playerCore, objectiveNode, corruptionPressure)
             .OrderByDescending(candidate => candidate.Score)
             .ThenBy(candidate => candidate.Target)
             .ToList();
@@ -26,6 +27,7 @@ public static class TacticalEnemyPlanner
     }
 
     public static IReadOnlyList<TacticalEnemyDecision> EvaluateCandidates(
+        BoardDefinition definition,
         NetworkBoard board,
         GameConfiguration configuration,
         TacticalEnemyProfile profile,
@@ -48,7 +50,7 @@ public static class TacticalEnemyPlanner
                     continue;
                 }
 
-                candidates.Add(ScoreCandidate(board, configuration, profile, playerCore, objectiveNode, corruptionPressure, enemyNode.Id, target));
+                candidates.Add(ScoreCandidate(definition, board, configuration, profile, playerCore, objectiveNode, corruptionPressure, enemyNode.Id, target));
             }
         }
 
@@ -59,6 +61,7 @@ public static class TacticalEnemyPlanner
     }
 
     private static TacticalEnemyDecision ScoreCandidate(
+        BoardDefinition definition,
         NetworkBoard board,
         GameConfiguration configuration,
         TacticalEnemyProfile profile,
@@ -68,7 +71,7 @@ public static class TacticalEnemyPlanner
         NodeId source,
         NodeState target)
     {
-        var resistance = GetCorruptionResistance(configuration, target);
+        var resistance = GetCorruptionResistance(definition, configuration, target);
         var actionType = target.Owner == NodeOwner.Neutral && corruptionPressure >= resistance
             ? TacticalEnemyActionType.CorruptNode
             : TacticalEnemyActionType.FocusPressure;
@@ -109,7 +112,7 @@ public static class TacticalEnemyPlanner
             score += 14d;
         }
 
-        if (target.Type == NodeType.Firewall && profile.Personality == EnemyPersonality.Defensive)
+        if (target.Type == NodeType.Firewall && profile.Personality == EnemyPersonality.Defensive && target.Id != objectiveNode)
         {
             score += 80d;
         }
@@ -188,11 +191,13 @@ public static class TacticalEnemyPlanner
         return score;
     }
 
-    private static int GetCorruptionResistance(GameConfiguration configuration, NodeState node)
+    private static int GetCorruptionResistance(BoardDefinition definition, GameConfiguration configuration, NodeState node)
     {
-        return node.Type == NodeType.Firewall
+        var baseResistance = node.Type == NodeType.Firewall
             ? configuration.FirewallCorruptionResistance
             : configuration.StandardCorruptionResistance;
+        var layer = definition.GetLayer(node.Id);
+        return Math.Max(1, baseResistance + configuration.GetLayerModifier(layer).CorruptionResistanceBonus);
     }
 
     private static double NormalizeDistance(int distance, int nodeCount)
